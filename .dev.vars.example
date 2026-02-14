@@ -1,0 +1,7 @@
+# .dev.vars — local development secrets for wrangler pages dev
+# Copy this file to .dev.vars, fill in real values, and never commit it.
+# .dev.vars is gitignored.
+
+# Admin key for /api/admin and /admin.html
+# Generate one: openssl rand -hex 32
+ADMIN_KEY=replace-me-with-a-strong-random-secret
