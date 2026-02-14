@@ -1,0 +1,33 @@
+name = "b0x-nz"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "public"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KV NAMESPACE BINDING
+# ─────────────────────────────────────────────────────────────────────────────
+# For production (GitHub -> Cloudflare Pages auto-deploy):
+#   Configure the KV binding in the Cloudflare dashboard:
+#   Pages -> b0x-nz -> Settings -> Functions -> KV namespace bindings
+#   Variable name: LINKS
+#
+# For local development only:
+#   1. Run: wrangler kv:namespace create "b0x-links"
+#           wrangler kv:namespace create "b0x-links" --preview
+#   2. Add a [[kv_namespaces]] block to your LOCAL copy only (gitignored via .dev.vars).
+#      DO NOT commit namespace IDs to the repository.
+#
+# [[kv_namespaces]]
+# binding    = "LINKS"
+# id         = ""   # production namespace ID
+# preview_id = ""   # preview namespace ID
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ENVIRONMENT VARIABLES / SECRETS
+# ─────────────────────────────────────────────────────────────────────────────
+# ADMIN_KEY must be configured in the Cloudflare Pages dashboard, NOT here.
+# Pages -> b0x-nz -> Settings -> Environment variables -> Add variable
+#   Name:  ADMIN_KEY
+#   Value: a strong random secret  (generate: openssl rand -hex 32)
+#
+# For local dev: copy .dev.vars.example -> .dev.vars and fill it in.
+# .dev.vars is gitignored and must never be committed.

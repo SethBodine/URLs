@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>b0x.nz — link shortener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f9fc;
+      --surface: #ffffff;
+      --border: #dde4ef;
+      --border-active: #93b4f5;
+      --text: #0d1b2a;
+      --text-muted: #6b7a99;
+      --blue: #2255d4;
+      --blue-light: #edf1fd;
+      --blue-glow: rgba(34, 85, 212, 0.12);
+      --blue-hover: #1a44b8;
+      --red: #e5383b;
+      --green: #1b9c6e;
+      --mono: 'DM Mono', monospace;
+      --sans: 'Syne', sans-serif;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(13,27,42,0.06), 0 4px 16px rgba(13,27,42,0.04);
+      --shadow-lg: 0 4px 24px rgba(34,85,212,0.10), 0 1px 4px rgba(13,27,42,0.08);
+    }
+
+    html { font-size: 16px; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Subtle grid pattern background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.45;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Blue glow blob */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 600px;
+      background: radial-gradient(ellipse at center, rgba(34,85,212,0.07) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 640px;
+      padding: 56px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.03em;
+    }
+
+    .logo span {
+      color: var(--blue);
+    }
+
+    .admin-link {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      transition: all 0.15s ease;
+    }
+
+    .admin-link:hover {
+      color: var(--blue);
+      border-color: var(--border-active);
+      background: var(--blue-light);
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 640px;
+      padding: 56px 24px 0;
+      flex: 1;
+    }
+
+    .hero-text {
+      margin-bottom: 36px;
+    }
+
+    .hero-text h1 {
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+
+    .hero-text h1 em {
+      font-style: normal;
+      color: var(--blue);
+    }
+
+    .hero-text p {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .url-input {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.875rem;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      min-width: 0;
+    }
+
+    .url-input::placeholder {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+
+    .url-input:focus {
+      border-color: var(--border-active);
+      box-shadow: 0 0 0 3px var(--blue-glow);
+      background: var(--surface);
+    }
+
+    .url-input.error {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(229,56,59,0.10);
+    }
+
+    .shorten-btn {
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      padding: 14px 22px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      box-shadow: 0 2px 8px rgba(34,85,212,0.25);
+    }
+
+    .shorten-btn:hover {
+      background: var(--blue-hover);
+      box-shadow: 0 4px 16px rgba(34,85,212,0.35);
+    }
+
+    .shorten-btn:active {
+      transform: scale(0.98);
+    }
+
+    .shorten-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error-msg {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--red);
+      display: none;
+    }
+
+    .error-msg.show { display: block; }
+
+    /* Result */
+    .result-section {
+      margin-top: 16px;
+      display: none;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .result-section.show { display: block; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border-active);
+      border-radius: 12px;
+      padding: 28px 24px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .qr-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    #qr-canvas {
+      display: block;
+      border-radius: 6px;
+    }
+
+    .result-urls {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .result-short-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--blue-light);
+      border: 1.5px solid var(--border-active);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+    }
+
+    .result-url {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--blue);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-url:hover { text-decoration: underline; }
+
+    .copy-btn {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 7px 14px;
+      border: 1.5px solid var(--border-active);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--blue);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .copy-btn.copied { background: var(--green); color: #fff; border-color: var(--green); }
+
+    .result-original-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 2px;
+    }
+
+    .result-original-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      letter-spacing: 0.03em;
+    }
+
+    .result-original-url {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-decoration: none;
+      min-width: 0;
+    }
+
+    .result-original-url:hover { color: var(--blue); text-decoration: underline; }
+
+    .result-meta { display: none; }
+
+    /* History */
+    .history-section {
+      margin-top: 28px;
+      display: none;
+    }
+
+    .history-section.show { display: block; }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .history-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .clear-history {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.15s;
+    }
+
+    .clear-history:hover { color: var(--red); }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .history-item-info {
+      min-width: 0;
+    }
+
+    .history-short {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .history-short:hover { text-decoration: underline; }
+
+    .history-long {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 380px;
+    }
+
+    .history-copy {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg);
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .history-copy:hover { color: var(--blue); border-color: var(--border-active); }
+    .history-copy.copied { color: var(--green); border-color: var(--green); }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 640px;
+      padding: 32px 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-text {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+    }
+
+    .footer-note {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      opacity: 0.5;
+      letter-spacing: 0.04em;
+    }
+
+    .loader {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 480px) {
+      .input-group { flex-direction: column; }
+      .shorten-btn { width: 100%; }
+      .result-short-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .copy-btn { align-self: flex-end; }
+      footer { flex-direction: column; gap: 6px; text-align: center; }
+    }
+
+    /* API docs section */
+    .api-section {
+      margin-top: 28px;
+    }
+
+    .api-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      padding: 10px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .api-toggle-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .api-toggle-icon {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+
+    .api-section.open .api-toggle-icon { transform: rotate(180deg); }
+
+    .api-body {
+      display: none;
+      padding-top: 4px;
+    }
+
+    .api-section.open .api-body { display: block; }
+
+    .api-endpoint {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .api-endpoint-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .api-method {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--blue-light);
+      color: var(--blue);
+      border: 1px solid var(--border-active);
+      flex-shrink: 0;
+    }
+
+    .api-method.del {
+      background: #fef2f2;
+      color: var(--red);
+      border-color: #fca5a5;
+    }
+
+    .api-path {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .api-desc {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
+    .api-endpoint-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .api-auth-note {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      padding: 7px 10px;
+      background: var(--blue-light);
+      border: 1px solid var(--border-active);
+      border-radius: 5px;
+    }
+
+    .api-auth-note strong {
+      color: var(--blue);
+    }
+
+    .api-block-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .api-code {
+      background: #0d1b2a;
+      border-radius: 6px;
+      padding: 12px 14px;
+      position: relative;
+    }
+
+    .api-code pre {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: #c8d8f0;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+    }
+
+    .api-code .k  { color: #93b4f5; }  /* keys */
+    .api-code .s  { color: #86efac; }  /* strings */
+    .api-code .n  { color: #fbbf24; }  /* numbers / booleans */
+    .api-code .c  { color: #6b7a99; }  /* comments */
+
+    .copy-code-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px;
+      color: #6b7a99;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-code-btn:hover { color: #c8d8f0; background: rgba(255,255,255,0.14); }
+    .copy-code-btn.copied { color: #86efac; }
+
+    @media (max-width: 560px) {
+      .api-desc { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="/">b<span>0</span>x.nz</a>
+    <a class="admin-link" href="/admin.html">— admin</a>
+  </header>
+
+  <main>
+    <div class="hero-text">
+      <h1>Shorten any<br /><em>link</em>. No questions asked.</h1>
+      <p>Paste a URL. Get a short one. That's it.</p>
+    </div>
+
+    <div class="card">
+      <div class="input-group">
+        <input
+          id="url-input"
+          class="url-input"
+          type="url"
+          placeholder="https://example.com/some/very/long/url"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+        <button class="shorten-btn" id="shorten-btn" onclick="shortenUrl()">Shorten</button>
+      </div>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <div class="result-section" id="result-section">
+      <div class="result-card">
+        <div class="qr-wrap">
+          <canvas id="qr-canvas"></canvas>
+        </div>
+        <div class="result-urls">
+          <div class="result-short-row">
+            <a class="result-url" id="result-url" href="#" target="_blank" rel="noopener"></a>
+            <button class="copy-btn" id="copy-btn" onclick="copyResult()">copy</button>
+          </div>
+          <div class="result-original-row">
+            <span class="result-original-label">→</span>
+            <a class="result-original-url" id="result-original-url" href="#" target="_blank" rel="noopener"></a>
+          </div>
+        </div>
+      </div>
+      <div class="result-meta" id="result-meta"></div>
+    </div>
+
+    <div class="history-section" id="history-section">
+      <div class="history-header">
+        <span class="history-label">recent</span>
+        <button class="clear-history" onclick="clearHistory()">clear</button>
+      </div>
+      <div class="history-list" id="history-list"></div>
+    </div>
+
+    <!-- API Reference -->
+    <div class="api-section" id="api-section">
+      <div class="api-toggle" onclick="toggleApi()">
+        <span class="api-toggle-label">api reference</span>
+        <span class="api-toggle-icon">▾</span>
+      </div>
+      <div class="api-body">
+
+        <!-- POST /api/shorten -->
+        <div class="api-endpoint">
+          <div class="api-endpoint-header">
+            <span class="api-method">POST</span>
+            <span class="api-path">/api/shorten</span>
+            <span class="api-desc">create a short link</span>
+          </div>
+          <div class="api-endpoint-body">
+            <div>
+              <div class="api-block-label">Request</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre><span class="c">// customSlug is optional</span>
+{
+  <span class="k">"url"</span>: <span class="s">"https://example.com/long-url"</span>,
+  <span class="k">"customSlug"</span>: <span class="s">"my-link"</span>
+}</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">Response 200</div>
+              <div class="api-code">
+                <pre>{
+  <span class="k">"shortUrl"</span>: <span class="s">"https://b0x.nz/ab3x"</span>,
+  <span class="k">"slug"</span>:     <span class="s">"ab3x"</span>,
+  <span class="k">"url"</span>:      <span class="s">"https://example.com/long-url"</span>,
+  <span class="k">"truth"</span>:   <span class="s">"..."</span>
+}</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">curl example</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>curl -X POST https://b0x.nz/api/shorten \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"url":"https://example.com"}'</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- POST /api/lookup -->
+        <div class="api-endpoint">
+          <div class="api-endpoint-header">
+            <span class="api-method">POST</span>
+            <span class="api-path">/api/lookup</span>
+            <span class="api-desc">fetch link metadata</span>
+          </div>
+          <div class="api-endpoint-body">
+            <div class="api-auth-note">
+              Add <strong>Authorization: Bearer &lt;ADMIN_KEY&gt;</strong> to also receive <code>ip</code> and <code>userAgent</code>.
+            </div>
+            <div>
+              <div class="api-block-label">Request — single</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>{ <span class="k">"slug"</span>: <span class="s">"ab3x"</span> }</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">Request — batch (max 50)</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>{ <span class="k">"slugs"</span>: [<span class="s">"ab3x"</span>, <span class="s">"yz9q"</span>] }</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">Response 200 — single</div>
+              <div class="api-code">
+                <pre>{
+  <span class="k">"slug"</span>:      <span class="s">"ab3x"</span>,
+  <span class="k">"shortUrl"</span>: <span class="s">"https://b0x.nz/ab3x"</span>,
+  <span class="k">"url"</span>:       <span class="s">"https://example.com/long-url"</span>,
+  <span class="k">"createdAt"</span>: <span class="s">"2025-01-01T00:00:00.000Z"</span>,
+  <span class="k">"country"</span>:   <span class="s">"NZ"</span>
+}</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">Response 200 — batch</div>
+              <div class="api-code">
+                <pre>{
+  <span class="k">"results"</span>:  [ <span class="c">/* array of records */</span> ],
+  <span class="k">"notFound"</span>: [<span class="s">"yz9q"</span>],
+  <span class="k">"count"</span>:    <span class="n">1</span>
+}</pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">curl example</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>curl -X POST https://b0x.nz/api/lookup \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"slug":"ab3x"}'</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GET + DELETE /api/admin -->
+        <div class="api-endpoint">
+          <div class="api-endpoint-header">
+            <span class="api-method">GET</span>
+            <span class="api-path">/api/admin</span>
+            <span class="api-desc">list all links</span>
+          </div>
+          <div class="api-endpoint-body">
+            <div class="api-auth-note">Requires <strong>Authorization: Bearer &lt;ADMIN_KEY&gt;</strong></div>
+            <div>
+              <div class="api-block-label">curl example</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>curl https://b0x.nz/api/admin \
+  -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="api-endpoint">
+          <div class="api-endpoint-header">
+            <span class="api-method del">DELETE</span>
+            <span class="api-path">/api/admin</span>
+            <span class="api-desc">delete one or purge all</span>
+          </div>
+          <div class="api-endpoint-body">
+            <div class="api-auth-note">Requires <strong>Authorization: Bearer &lt;ADMIN_KEY&gt;</strong></div>
+            <div>
+              <div class="api-block-label">Delete one</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>curl -X DELETE https://b0x.nz/api/admin \
+  -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"slug":"ab3x"}'</span></pre>
+              </div>
+            </div>
+            <div>
+              <div class="api-block-label">Purge all</div>
+              <div class="api-code">
+                <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
+                <pre>curl -X DELETE https://b0x.nz/api/admin \
+  -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"purgeAll":true}'</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span class="footer-text">b0x.nz</span>
+    <span class="footer-note">nothing to see here</span>
+  </footer>
+
+  <script>
+    let history = JSON.parse(localStorage.getItem('b0x_history') || '[]');
+    let lastResult = null;
+
+    renderHistory();
+
+    const input = document.getElementById('url-input');
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') shortenUrl();
+      input.classList.remove('error');
+      document.getElementById('error-msg').classList.remove('show');
+    });
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('show');
+      document.getElementById('url-input').classList.add('error');
+    }
+
+    async function shortenUrl() {
+      const btn = document.getElementById('shorten-btn');
+      const url = input.value.trim();
+      const errorEl = document.getElementById('error-msg');
+
+      errorEl.classList.remove('show');
+      input.classList.remove('error');
+
+      if (!url) {
+        showError('Please enter a URL.');
+        input.focus();
+        return;
+      }
+
+      // Client-side validation mirrors backend rules (prevents unnecessary API calls)
+      const validationError = validateUrlClient(url);
+      if (validationError) {
+        showError(validationError);
+        input.classList.add('error');
+        input.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>';
+
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Something went wrong. Try again.');
+          return;
+        }
+
+        lastResult = data.shortUrl;
+        showResult(data.shortUrl, url);
+        addToHistory({ shortUrl: data.shortUrl, url, slug: data.slug });
+        input.value = '';
+
+      } catch (err) {
+        showError('Network error. Are you connected?');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Shorten';
+      }
+    }
+
+    function drawQr(url) {
+      const canvas = document.getElementById('qr-canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Generate QR with error correction H (30% can be obscured)
+      const qr = qrcode(0, 'H');
+      qr.addData(url);
+      qr.make();
+
+      const moduleCount = qr.getModuleCount();
+      const PADDING = 3;         // quiet zone modules
+      const CELL = 7;            // px per module
+      const total = (moduleCount + PADDING * 2) * CELL;
+
+      canvas.width = total;
+      canvas.height = total;
+      canvas.style.width = total + 'px';
+      canvas.style.height = total + 'px';
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, total, total);
+
+      // Draw modules
+      const offset = PADDING * CELL;
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            ctx.fillStyle = '#0d1b2a';
+            ctx.fillRect(offset + col * CELL, offset + row * CELL, CELL, CELL);
+          }
+        }
+      }
+
+      // Center box overlay
+      // Use ~27% of inner QR area (safe with H error correction)
+      const boxFraction = 0.27;
+      const innerSize = moduleCount * CELL;
+      const boxSize = Math.round(innerSize * boxFraction);
+      const cx = offset + innerSize / 2;
+      const cy = offset + innerSize / 2;
+      const bx = cx - boxSize / 2;
+      const by = cy - boxSize / 2;
+      const borderR = 6;
+
+      // White fill
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, bx, by, boxSize, boxSize, borderR);
+      ctx.fill();
+
+      // Blue border
+      ctx.strokeStyle = '#2255d4';
+      ctx.lineWidth = 2.5;
+      roundRect(ctx, bx, by, boxSize, boxSize, borderR);
+      ctx.stroke();
+
+      // "b0x" label inside box
+      const fontSize = Math.max(10, Math.round(boxSize * 0.28));
+      ctx.font = `500 ${fontSize}px 'DM Mono', monospace`;
+      ctx.fillStyle = '#2255d4';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('b0x', cx, cy);
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function showResult(shortUrl, originalUrl) {
+      const section = document.getElementById('result-section');
+      const link = document.getElementById('result-url');
+      const origLink = document.getElementById('result-original-url');
+
+      link.textContent = shortUrl;
+      link.href = shortUrl;
+      origLink.textContent = originalUrl;
+      origLink.href = originalUrl;
+
+      section.classList.add('show');
+
+      const copyBtn = document.getElementById('copy-btn');
+      copyBtn.textContent = 'copy';
+      copyBtn.classList.remove('copied');
+
+      // Draw QR after section is visible so canvas is in DOM
+      requestAnimationFrame(() => drawQr(shortUrl));
+    }
+
+    function copyResult() {
+      if (!lastResult) return;
+      navigator.clipboard.writeText(lastResult).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function addToHistory(item) {
+      history = history.filter(h => h.shortUrl !== item.shortUrl);
+      history.unshift({ ...item, time: Date.now() });
+      history = history.slice(0, 10);
+      localStorage.setItem('b0x_history', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const section = document.getElementById('history-section');
+      const list = document.getElementById('history-list');
+
+      if (history.length === 0) {
+        section.classList.remove('show');
+        return;
+      }
+
+      section.classList.add('show');
+      list.innerHTML = history.map(item => `
+        <div class="history-item">
+          <div class="history-item-info">
+            <a class="history-short" href="${escHtml(item.shortUrl)}" target="_blank" rel="noopener">${escHtml(item.shortUrl)}</a>
+            <div class="history-long" title="${escHtml(item.url)}">${escHtml(item.url)}</div>
+          </div>
+          <button class="history-copy" onclick="copyHistoryItem(this, '${escHtml(item.shortUrl)}')">copy</button>
+        </div>
+      `).join('');
+    }
+
+    function copyHistoryItem(btn, url) {
+      navigator.clipboard.writeText(url).then(() => {
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function clearHistory() {
+      history = [];
+      localStorage.removeItem('b0x_history');
+      renderHistory();
+    }
+
+    /**
+     * Client-side URL validation — mirrors backend _security.js rules.
+     * Returns null if valid, or an error string if invalid.
+     * Invalid URLs are rejected here so we never hit the API unnecessarily.
+     */
+    function validateUrlClient(raw) {
+      if (typeof raw !== 'string') return 'URL must be a string.';
+
+      // Strip control/zero-width chars
+      let str = raw.replace(/[\u0000-\u001F\u007F\u200B-\u200D\uFEFF\u202A-\u202E]/g, '').trim();
+
+      if (!str) return 'URL must not be empty.';
+      if (str.length > 2048) return 'URL must be 2048 characters or fewer.';
+
+      // Scheme check before parsing
+      const schemeMatch = str.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\//i);
+      if (!schemeMatch) return 'URL must include a scheme (https:// or http://).';
+
+      const scheme = schemeMatch[1].toLowerCase();
+      if (scheme !== 'http' && scheme !== 'https') {
+        return `URL scheme "${scheme}" is not allowed. Only http and https are accepted.`;
+      }
+
+      let parsed;
+      try {
+        parsed = new URL(str);
+      } catch {
+        return 'URL is not valid and could not be parsed.';
+      }
+
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return 'Only http and https URLs are accepted.';
+      }
+
+      if (parsed.username || parsed.password) {
+        return 'URLs with embedded credentials are not accepted.';
+      }
+
+      const hostname = parsed.hostname;
+      if (!hostname) return 'URL must contain a valid hostname.';
+
+      const isRawIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':');
+      if (!isRawIp && !hostname.includes('.')) {
+        return 'URL hostname does not appear to be a valid domain.';
+      }
+
+      // SSRF — block private/reserved ranges (mirrors backend)
+      const privateIPv4 = [
+        /^0\./,
+        /^127\./,
+        /^10\./,
+        /^172\.(1[6-9]|2\d|3[01])\./,
+        /^192\.168\./,
+        /^169\.254\./,
+        /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,
+      ];
+      const blockedHosts = new Set(['localhost','metadata.google.internal','metadata.goog']);
+
+      const h = hostname.toLowerCase();
+      if (blockedHosts.has(h)) return 'URL resolves to a reserved address.';
+      if (/\.(local|internal|localhost|lan|corp)$/i.test(h)) return 'URL resolves to a private network address.';
+      if (privateIPv4.some(re => re.test(h))) return 'URL resolves to a reserved or private address.';
+
+      return null; // valid
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function toggleApi() {
+      document.getElementById('api-section').classList.toggle('open');
+    }
+
+    function copyCode(btn) {
+      const pre = btn.closest('.api-code').querySelector('pre');
+      // Strip HTML tags to get plain text
+      const tmp = document.createElement('div');
+      tmp.innerHTML = pre.innerHTML;
+      const text = tmp.textContent || tmp.innerText || '';
+      navigator.clipboard.writeText(text.trim()).then(() => {
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+  </script>
+</body>
+</html>
