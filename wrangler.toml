@@ -1,44 +1,24 @@
-name = "link-shortener"
+name = "URLs"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DEPLOYMENT CONFIGURATION
+# KV NAMESPACE BINDING
 # ─────────────────────────────────────────────────────────────────────────────
-# This file contains zero secrets and zero infrastructure identifiers.
-# All deployment-specific configuration lives in Cloudflare, not in this repo.
+# The tokens below are substituted at build time by _build.sh using Cloudflare
+# environment variables. The actual namespace IDs never appear in this file.
 # See README.md for setup instructions.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────────────────────
-# KV NAMESPACE BINDING
-# ─────────────────────────────────────────────────────────────────────────────
-# When deploying via Cloudflare Pages (recommended):
-#   The binding is configured in the dashboard, never in this file:
-#   Pages → Settings → Functions → KV namespace bindings
-#     Variable name: LINKS
-#     KV namespace:  <select your namespace>
-#     Environment:   Production + Preview
-#
-# The [[kv_namespaces]] block below declares the binding exists (so local
-# development with `wrangler pages dev` knows about it), but the namespace ID
-# is configured in Cloudflare's dashboard only — never committed to the repo.
-# ─────────────────────────────────────────────────────────────────────────────
-
 [[kv_namespaces]]
-binding = "LINKS"
-# id and preview_id are omitted — they are set in the Cloudflare dashboard.
-# Putting them here would expose your infrastructure topology in a public repo.
+binding    = "LINKS"
+id         = "__KV_NAMESPACE_ID__"
+preview_id = "__KV_PREVIEW_NAMESPACE_ID__"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECRETS
 # ─────────────────────────────────────────────────────────────────────────────
-# ADMIN_KEY must be set as a Cloudflare Pages environment variable:
-#   Pages → Settings → Environment variables → Add variable
-#     Name:  ADMIN_KEY
-#     Value: <strong secret — run: openssl rand -hex 32>
-#     Environments: Production, Preview
-#     Encrypt toggle: ON
-#
-# For local dev: create .dev.vars (gitignored) with: ADMIN_KEY=test-key-here
+# ADMIN_KEY is set as a Cloudflare Pages environment variable:
+#   Pages → Settings → Environment variables → ADMIN_KEY
+#   Toggle "Encrypt" so it's stored as a secret.
 # ─────────────────────────────────────────────────────────────────────────────
