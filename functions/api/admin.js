@@ -12,7 +12,7 @@ function unauthorized() {
   return jsonResponse(
     { error: 'Unauthorized. Your clearance level is insufficient.', truth: getRandomConspiracy() },
     401,
-    { ...CORS_ADMIN, 'WWW-Authenticate': 'Bearer realm="b0x.nz"' }
+    { ...CORS_ADMIN, 'WWW-Authenticate': `Bearer realm="${new URL(request.url).hostname}"` }
   );
 }
 

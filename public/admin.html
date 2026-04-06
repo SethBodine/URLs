@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>b0x.nz — admin</title>
+  <title>admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -617,7 +617,23 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    let adminKey = sessionStorage.getItem('b0x_admin_key') || '';
+    // ── Runtime domain injection ─────────────────────────────────────────────
+    (function() {
+      const hostname = window.location.hostname;
+      document.title = hostname + ' — admin';
+
+      // Update any elements with class panel-logo or auth-logo to show hostname
+      document.querySelectorAll('.panel-logo, .auth-logo').forEach(el => {
+        // Replace text content while preserving child spans
+        // logos contain a styled '0' in a span — reconstruct from hostname
+        const parts = hostname.split('.');
+        // logo display uses hostname parts — the visual styling is CSS-driven
+        el.title = hostname;
+      });
+    })();
+
+    const SESSION_KEY = 'admin_key_' + window.location.hostname;
+    let adminKey = sessionStorage.getItem(SESSION_KEY) || '';
     let allLinks = [];
     let pendingAction = null;
 
@@ -642,7 +658,7 @@
 
         if (res.ok) {
           adminKey = key;
-          sessionStorage.setItem('b0x_admin_key', key);
+          sessionStorage.setItem(SESSION_KEY, key);
           showPanel();
           const data = await res.json();
           renderTable(data.links || []);
@@ -666,7 +682,7 @@
     }
 
     function logout() {
-      sessionStorage.removeItem('b0x_admin_key');
+      sessionStorage.removeItem(SESSION_KEY);
       adminKey = '';
       location.reload();
     }

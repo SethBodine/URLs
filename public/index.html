@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>b0x.nz — link shortener</title>
+  <title>link shortener</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -749,7 +749,7 @@
               <div class="api-block-label">Response 200</div>
               <div class="api-code">
                 <pre>{
-  <span class="k">"shortUrl"</span>: <span class="s">"https://b0x.nz/ab3x"</span>,
+  <span class="k">"shortUrl"</span>: <span class="s" data-origin-url="/ab3x"></span>,
   <span class="k">"slug"</span>:     <span class="s">"ab3x"</span>,
   <span class="k">"url"</span>:      <span class="s">"https://example.com/long-url"</span>,
   <span class="k">"truth"</span>:   <span class="s">"..."</span>
@@ -760,7 +760,7 @@
               <div class="api-block-label">curl example</div>
               <div class="api-code">
                 <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
-                <pre>curl -X POST https://b0x.nz/api/shorten \
+                <pre>curl -X POST __ORIGIN__/api/shorten \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"url":"https://example.com"}'</span></pre>
               </div>
@@ -798,7 +798,7 @@
               <div class="api-code">
                 <pre>{
   <span class="k">"slug"</span>:      <span class="s">"ab3x"</span>,
-  <span class="k">"shortUrl"</span>: <span class="s">"https://b0x.nz/ab3x"</span>,
+  <span class="k">"shortUrl"</span>: <span class="s" data-origin-url="/ab3x"></span>,
   <span class="k">"url"</span>:       <span class="s">"https://example.com/long-url"</span>,
   <span class="k">"createdAt"</span>: <span class="s">"2025-01-01T00:00:00.000Z"</span>,
   <span class="k">"country"</span>:   <span class="s">"NZ"</span>
@@ -819,7 +819,7 @@
               <div class="api-block-label">curl example</div>
               <div class="api-code">
                 <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
-                <pre>curl -X POST https://b0x.nz/api/lookup \
+                <pre>curl -X POST __ORIGIN__/api/lookup \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"slug":"ab3x"}'</span></pre>
               </div>
@@ -840,7 +840,7 @@
               <div class="api-block-label">curl example</div>
               <div class="api-code">
                 <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
-                <pre>curl https://b0x.nz/api/admin \
+                <pre>curl __ORIGIN__/api/admin \
   -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span></pre>
               </div>
             </div>
@@ -859,7 +859,7 @@
               <div class="api-block-label">Delete one</div>
               <div class="api-code">
                 <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
-                <pre>curl -X DELETE https://b0x.nz/api/admin \
+                <pre>curl -X DELETE __ORIGIN__/api/admin \
   -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span> \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"slug":"ab3x"}'</span></pre>
@@ -869,7 +869,7 @@
               <div class="api-block-label">Purge all</div>
               <div class="api-code">
                 <button class="copy-code-btn" onclick="copyCode(this)">copy</button>
-                <pre>curl -X DELETE https://b0x.nz/api/admin \
+                <pre>curl -X DELETE __ORIGIN__/api/admin \
   -H <span class="s">"Authorization: Bearer &lt;key&gt;"</span> \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"purgeAll":true}'</span></pre>
@@ -883,12 +883,37 @@
   </main>
 
   <footer>
-    <span class="footer-text">b0x.nz</span>
+    <span class="footer-text" id="footer-domain"></span>
     <span class="footer-note">nothing to see here</span>
   </footer>
 
   <script>
-    let history = JSON.parse(localStorage.getItem('b0x_history') || '[]');
+    // ── Runtime domain injection ─────────────────────────────────────────────
+    // Replace every reference that was hardcoded with the deployment domain by
+    // reading window.location at runtime. Works on any domain, no rebuild needed.
+    (function() {
+      const hostname = window.location.hostname;
+      const origin   = window.location.origin;
+
+      // Page title
+      document.title = hostname + ' — link shortener';
+
+      // Footer
+      const footer = document.getElementById('footer-domain');
+      if (footer) footer.textContent = hostname;
+
+      // API reference pre blocks — swap __ORIGIN__ with real origin
+      document.querySelectorAll('pre').forEach(pre => {
+        pre.innerHTML = pre.innerHTML.replace(/__ORIGIN__/g, origin);
+      });
+      // Span elements with data-origin-url attribute
+      document.querySelectorAll('[data-origin-url]').forEach(el => {
+        el.textContent = origin + el.getAttribute('data-origin-url');
+      });
+    })();
+
+    const STORAGE_KEY = 'ls_history_' + window.location.hostname;
+    let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     let lastResult = null;
 
     renderHistory();
@@ -1023,7 +1048,8 @@
       ctx.fillStyle = '#2255d4';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('b0x', cx, cy);
+      const qrLabel = window.location.hostname.split('.')[0];
+      ctx.fillText(qrLabel, cx, cy);
     }
 
     function roundRect(ctx, x, y, w, h, r) {
@@ -1077,7 +1103,7 @@
       history = history.filter(h => h.shortUrl !== item.shortUrl);
       history.unshift({ ...item, time: Date.now() });
       history = history.slice(0, 10);
-      localStorage.setItem('b0x_history', JSON.stringify(history));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
       renderHistory();
     }
 
@@ -1115,7 +1141,7 @@
 
     function clearHistory() {
       history = [];
-      localStorage.removeItem('b0x_history');
+      localStorage.removeItem(STORAGE_KEY);
       renderHistory();
     }
 

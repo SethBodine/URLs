@@ -1,33 +1,44 @@
-name = "b0x-nz"
+name = "link-shortener"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KV NAMESPACE BINDING
+# DEPLOYMENT CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
-# For production (GitHub -> Cloudflare Pages auto-deploy):
-#   Configure the KV binding in the Cloudflare dashboard:
-#   Pages -> b0x-nz -> Settings -> Functions -> KV namespace bindings
-#   Variable name: LINKS
-#
-# For local development only:
-#   1. Run: wrangler kv:namespace create "b0x-links"
-#           wrangler kv:namespace create "b0x-links" --preview
-#   2. Add a [[kv_namespaces]] block to your LOCAL copy only (gitignored via .dev.vars).
-#      DO NOT commit namespace IDs to the repository.
-#
-# [[kv_namespaces]]
-# binding    = "LINKS"
-# id         = ""   # production namespace ID
-# preview_id = ""   # preview namespace ID
+# This file contains zero secrets and zero infrastructure identifiers.
+# All deployment-specific configuration lives in Cloudflare, not in this repo.
+# See README.md for setup instructions.
+# ─────────────────────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ENVIRONMENT VARIABLES / SECRETS
+# KV NAMESPACE BINDING
 # ─────────────────────────────────────────────────────────────────────────────
-# ADMIN_KEY must be configured in the Cloudflare Pages dashboard, NOT here.
-# Pages -> b0x-nz -> Settings -> Environment variables -> Add variable
-#   Name:  ADMIN_KEY
-#   Value: a strong random secret  (generate: openssl rand -hex 32)
+# When deploying via Cloudflare Pages (recommended):
+#   The binding is configured in the dashboard, never in this file:
+#   Pages → Settings → Functions → KV namespace bindings
+#     Variable name: LINKS
+#     KV namespace:  <select your namespace>
+#     Environment:   Production + Preview
 #
-# For local dev: copy .dev.vars.example -> .dev.vars and fill it in.
-# .dev.vars is gitignored and must never be committed.
+# The [[kv_namespaces]] block below declares the binding exists (so local
+# development with `wrangler pages dev` knows about it), but the namespace ID
+# is configured in Cloudflare's dashboard only — never committed to the repo.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[kv_namespaces]]
+binding = "LINKS"
+# id and preview_id are omitted — they are set in the Cloudflare dashboard.
+# Putting them here would expose your infrastructure topology in a public repo.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECRETS
+# ─────────────────────────────────────────────────────────────────────────────
+# ADMIN_KEY must be set as a Cloudflare Pages environment variable:
+#   Pages → Settings → Environment variables → Add variable
+#     Name:  ADMIN_KEY
+#     Value: <strong secret — run: openssl rand -hex 32>
+#     Environments: Production, Preview
+#     Encrypt toggle: ON
+#
+# For local dev: create .dev.vars (gitignored) with: ADMIN_KEY=test-key-here
+# ─────────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 /**
- * _security.js — shared security primitives for b0x.nz
+ * _security.js — shared security primitives
  *
  * OWASP Top 10 mitigations addressed here:
  *
