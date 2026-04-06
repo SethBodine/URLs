@@ -2,59 +2,50 @@
 
 A minimal, secure, free link shortener built on Cloudflare Pages + Workers + KV.
 
-**Stack:** Cloudflare pulls from GitHub → builds in CF infrastructure → deploys to Pages + KV  
+**Stack:** Cloudflare pulls from GitHub → deploys to Pages + KV  
 **Cost:** $0 within Cloudflare's free tier  
 **Licence:** MIT  
-**Security:** All secrets stored in Cloudflare only — GitHub repo contains zero credentials
+**Security:** All secrets in Cloudflare only — GitHub repo contains zero credentials
 
 ---
 
 ## Architecture & Trust Model
 
-**Code:** Public GitHub repository (this repo)  
-**Secrets:** Cloudflare environment variables (encrypted at rest, never leave CF infrastructure)  
-**Build:** Cloudflare's build environment (not GitHub Actions — avoids third-party trust boundary)  
+**Code:** Public GitHub repository  
+**Secrets:** Cloudflare environment variables (encrypted, never leave CF infrastructure)  
+**Build:** Cloudflare's infrastructure (not GitHub Actions)  
 **Deploy:** Automatic on every push to `main`
 
-**The repository contains:**
-- Application code
+**Repository contains:**
+- Application code only
 - Zero secrets
-- Zero KV namespace IDs (stored as `__PLACEHOLDER__` tokens, substituted at build time)
+- Zero KV namespace IDs
 - Zero account identifiers
 
-Cloudflare pulls the code and runs `_build.sh`, which injects KV namespace IDs from environment variables. GitHub never sees any credentials or infrastructure IDs.
+The KV binding and secrets are configured in the Cloudflare Pages dashboard. GitHub never sees any credentials or infrastructure topology.
 
 ---
 
 ## Features
 
 - 4-character short codes with optional custom slugs
-- QR code with custom centre logo generated client-side
+- QR code with custom centre logo (client-side)
 - Browser localStorage for recent links
-- Metadata per link: IP, country, user agent, timestamp
-- Key-protected admin panel at `/admin.html`
-- JSON API with single and batch lookup
-- Conspiracy-theory Easter eggs in every HTTP response
-- OWASP Top 10 mitigations throughout
+- Metadata: IP, country, user agent, timestamp per link
+- Key-protected admin panel (`/admin.html`)
+- JSON API with single/batch lookup
+- Conspiracy Easter eggs in HTTP responses
+- OWASP Top 10 mitigations
 - Zero npm dependencies
-- Works on any domain — all branding derived from `window.location` at runtime
+- Domain-agnostic (all branding from `window.location`)
 
 ---
 
 ## Deployment
 
-### Prerequisites
-
-- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier)
-- A GitHub account
-- Your domain already added to Cloudflare DNS (for custom domain step)
-
----
-
 ### Step 1 — Push to GitHub
 
 ```bash
-cd link-shortener
 git init
 git add .
 git commit -m "initial commit"
@@ -63,123 +54,107 @@ git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
 git push -u origin main
 ```
 
-The repository is safe to make public — it contains no secrets or infrastructure IDs.
+Safe to make public — no secrets in the repo.
 
 ---
 
-### Step 2 — Create Cloudflare KV Namespaces
+### Step 2 — Create KV Namespaces in Cloudflare
 
-1. Log into [dash.cloudflare.com](https://dash.cloudflare.com)
-2. Go to **Workers & Pages → KV**
-3. Click **Create namespace**, name it (e.g. `shortener-links`), click **Add**
-4. **Copy the Namespace ID** (you'll need it in Step 4)
-5. Repeat: create a second namespace for preview (e.g. `shortener-links-preview`)
-6. **Copy that Namespace ID** too
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → KV**
+2. Click **Create namespace**, name it (e.g. `shortener-links`), **Add**
+3. Note the namespace name (you'll select it from a dropdown shortly)
+4. Repeat for preview: create `shortener-links-preview`
 
 ---
 
-### Step 3 — Create a Cloudflare Pages Project
+### Step 3 — Create Pages Project & Connect GitHub
 
-1. Go to **Workers & Pages → Create application → Pages**
-2. Click **Connect to Git**
-3. Authorize Cloudflare to access GitHub if prompted
-4. Select your repository
-5. Configure build settings:
+1. **Workers & Pages → Create → Pages → Connect to Git**
+2. Authorize GitHub, select your repository
+3. Build settings:
 
    | Setting | Value |
    |---|---|
    | Production branch | `main` |
-   | Framework preset | **None** |
-   | **Build command** | `bash _build.sh` |
+   | Framework preset | None |
+   | Build command | *(leave blank)* |
    | Build output directory | `public` |
 
-6. **Do not click "Save and Deploy" yet** — environment variables must be set first
+4. **Don't click Save yet** — continue to Step 4
 
 ---
 
-### Step 4 — Set Environment Variables
+### Step 4 — Configure KV Binding
 
-Still on the "Create Pages Project" screen, scroll down to **Environment variables (advanced)**.
+Still on the project creation screen, scroll to **Functions** section:
 
-Add the following **three** variables for **Production**:
+1. Under **KV namespace bindings**, click **Add binding**
+2. For **Production**:
+   - Variable name: `LINKS` (must match exactly)
+   - KV namespace: select `shortener-links` (or whatever you named it)
+3. For **Preview**:
+   - Variable name: `LINKS`
+   - KV namespace: select `shortener-links-preview`
 
-| Variable name | Value | Encrypt? |
-|---|---|---|
-| `KV_NAMESPACE_ID` | Your production namespace ID from Step 2 | No |
-| `KV_PREVIEW_NAMESPACE_ID` | Your preview namespace ID from Step 2 | No |
-| `ADMIN_KEY` | A strong secret: `openssl rand -hex 32` | **Yes** |
+---
 
-Then add the same three for **Preview** (you can use the same values or different ones).
+### Step 5 — Set ADMIN_KEY Secret
 
-> **Why aren't the namespace IDs encrypted?** They're infrastructure identifiers, not credentials. Encrypting them would prevent the build script from reading them. Only `ADMIN_KEY` should be encrypted.
+Still on the creation screen, scroll to **Environment variables**:
+
+1. Click **Add variable**
+2. For **Production**:
+   - Variable name: `ADMIN_KEY`
+   - Value: generate with `openssl rand -hex 32`
+   - **Encrypt:** toggle **ON**
+3. For **Preview**: repeat (same key or different)
 
 Now click **Save and Deploy**.
 
 ---
 
-### Step 5 — Verify the Build Succeeded
+### Step 6 — Add Custom Domain
 
-1. Go to **Deployments** and watch the build log
-2. You should see:
-   ```
-   → Injecting KV namespace IDs into wrangler.toml from CF environment variables...
-   ✓ KV namespace IDs injected successfully.
-   ✓ Build ready.
-   ```
-3. If the build fails with "KV_NAMESPACE_ID environment variable is not set", go back to Step 4 and ensure you added the variables to the **Production** environment (not just Preview)
-
----
-
-### Step 6 — Add Your Custom Domain
-
-1. Go to **Custom domains → Set up a custom domain**
+1. **Custom domains → Set up a custom domain**
 2. Enter your domain (e.g. `yourdomain.com`)
-3. If on Cloudflare DNS, the CNAME is added automatically
-4. If on an external registrar, add the CNAME as instructed
-5. SSL provisions automatically
+3. CNAME added automatically if domain on Cloudflare DNS
+4. SSL provisions in ~60 seconds
 
-The site is now live at `https://yourdomain.com`.
+Site live at `https://yourdomain.com`.
 
 ---
 
-### Step 7 — Verify It Works
+### Step 7 — Verify
 
 ```bash
-# Replace YOUR_DOMAIN with your actual domain
-
-# 1. Shorten a URL
+# Shorten a URL
 curl -X POST https://YOUR_DOMAIN/api/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com"}'
-# → {"shortUrl":"https://YOUR_DOMAIN/xxxx", ...}
 
-# 2. Follow the short link
+# Follow redirect
 curl https://YOUR_DOMAIN/xxxx
-# → Redirect + conspiracy message
 
-# 3. Check the hidden header
-curl -sI https://YOUR_DOMAIN/xxxx | grep -i x-truth
-# → X-Truth: <statement>
+# Check conspiracy header
+curl -sI https://YOUR_DOMAIN/xxxx | grep x-truth
 
-# 4. Confirm admin requires auth
+# Test admin (should fail without key)
 curl https://YOUR_DOMAIN/api/admin
-# → 401 Unauthorized
 
-# 5. Confirm admin works with your key
+# Test admin with key
 curl https://YOUR_DOMAIN/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY"
-# → {"links":[...], "count":N}
 
-# 6. Open https://YOUR_DOMAIN/admin.html and log in
+# Open https://YOUR_DOMAIN/admin.html in browser
 ```
 
 ---
 
 ## Future Deployments
 
-Every push to `main` triggers automatic deployment. Cloudflare pulls the code, runs `_build.sh` to inject namespace IDs, builds, and deploys. No manual steps required.
+Every push to `main` auto-deploys. No manual steps.
 
-To disable auto-deploy: **Settings → Builds & deployments → Pause deployments**
+Disable: **Settings → Builds & deployments → Pause deployments**
 
 ---
 
@@ -197,17 +172,17 @@ wrangler kv:namespace create "local-links"
 wrangler kv:namespace create "local-links" --preview
 ```
 
+Copy the IDs from output.
+
 **3. Create `wrangler.local.toml` (gitignored):**
-```toml
-[[kv_namespaces]]
-binding = "LINKS"
-id = "YOUR_LOCAL_NAMESPACE_ID"
-preview_id = "YOUR_PREVIEW_NAMESPACE_ID"
+```bash
+cp wrangler.local.toml.example wrangler.local.toml
+# Edit and add your namespace IDs
 ```
 
 **4. Create `.dev.vars` (gitignored):**
 ```bash
-echo "ADMIN_KEY=test-key-for-local-dev" > .dev.vars
+echo "ADMIN_KEY=test-key" > .dev.vars
 ```
 
 **5. Run:**
@@ -215,123 +190,116 @@ echo "ADMIN_KEY=test-key-for-local-dev" > .dev.vars
 wrangler pages dev public
 ```
 
-Never commit `wrangler.local.toml` or `.dev.vars` — both are gitignored.
+Local site at `http://localhost:8788`.
 
 ---
 
 ## Rotating Secrets
 
-To rotate `ADMIN_KEY`:
+**To rotate ADMIN_KEY:**
 
-1. Generate a new key: `openssl rand -hex 32`
+1. Generate: `openssl rand -hex 32`
 2. **Settings → Environment variables → ADMIN_KEY → Edit**
-3. Paste new value, ensure **Encrypt** is ON, save
-4. Redeploy (push to `main` or retry deployment in dashboard)
+3. Paste new value, **Encrypt: ON**, save
+4. Redeploy (push to main or retry in dashboard)
 
-To rotate KV namespace IDs (rare — only if migrating datastores):
+**To rotate KV namespaces (rare):**
 
 1. Create new namespaces
-2. **Settings → Environment variables → Edit `KV_NAMESPACE_ID` and `KV_PREVIEW_NAMESPACE_ID`**
-3. Redeploy
+2. **Settings → Functions → KV namespace bindings → Edit**
+3. Select new namespaces
+4. Redeploy
+5. Migrate data with Wrangler CLI if needed
 
 ---
 
 ## Admin Panel
 
-Navigate to `https://YOUR_DOMAIN/admin.html` and enter your `ADMIN_KEY`.
+`https://YOUR_DOMAIN/admin.html` → enter `ADMIN_KEY`
 
-Session held in `sessionStorage` (scoped to your domain, clears on tab close).
+Session in `sessionStorage` (domain-scoped, clears on tab close).
 
 **Features:**
-- Total link count + today's count
-- Full table: slug, destination, IP, country, user agent, created date
+- Link count + today's count
+- Table: slug, URL, IP, country, user agent, date
 - Real-time search/filter
-- Delete individual links
-- Purge all links
+- Delete links
+- Purge all
 
 ---
 
 ## API Reference
 
-All endpoints require `Content-Type: application/json`, enforce 8KB body limit, include `X-Truth` header.
+All endpoints: `Content-Type: application/json`, 8KB limit, `X-Truth` header.
 
 ### `POST /api/shorten`
 
 ```json
-{ "url": "https://example.com/path", "customSlug": "my-link" }
+{ "url": "https://example.com", "customSlug": "my-link" }
 ```
 
-`customSlug` optional (2–32 chars, `a-z 0-9 - _`). Omit for random 4-char slug.
+`customSlug` optional (2–32 chars, `a-z 0-9 - _`).
 
-**Response `200`:**
+**Response:**
 ```json
 { "shortUrl": "https://YOUR_DOMAIN/xk2a", "slug": "xk2a", "url": "..." }
 ```
 
-**Errors:** `400` (missing url/malformed JSON), `409` (slug taken), `422` (validation failed)
-
----
+**Errors:** `400` (bad JSON), `409` (slug taken), `422` (validation failed)
 
 ### `POST /api/lookup`
 
-**Single:**
 ```json
 { "slug": "xk2a" }
-```
-
-**Batch (max 50):**
-```json
 { "slugs": ["xk2a", "yz9q"] }
 ```
 
-Add `Authorization: Bearer ADMIN_KEY` to also receive `ip` and `userAgent`.
-
----
+Add `Authorization: Bearer ADMIN_KEY` for `ip`/`userAgent`.
 
 ### `GET /api/admin`
 
-Returns all links. Requires `Authorization: Bearer ADMIN_KEY`.
-
----
+List all. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ### `DELETE /api/admin`
 
-Requires `Authorization: Bearer ADMIN_KEY`.
+Requires auth.
 
-**Delete one:** `{ "slug": "xk2a" }`  
-**Purge all:** `{ "purgeAll": true }`
+```json
+{ "slug": "xk2a" }
+{ "purgeAll": true }
+```
 
 ---
 
-## Security
+## Security (OWASP Top 10)
 
-| OWASP Risk | Mitigation |
+| Risk | Mitigation |
 |---|---|
-| **A01 Broken Access Control** | Timing-safe key comparison; reserved slug blocklist |
-| **A02 Cryptographic Failures** | Secrets in CF encrypted env vars (injected at build, never in repo) |
-| **A03 Injection** | Strict allowlist regex; native `URL` API; validated slugs only |
-| **A04 Insecure Design** | URL scheme `http`/`https` only; embedded credentials rejected |
-| **A05 Security Misconfiguration** | Security headers; no verbose errors |
-| **A06 Vulnerable Components** | Zero npm dependencies |
-| **A07 Authentication Failures** | `timingSafeEqual()` prevents timing attacks |
-| **A08 Data Integrity** | NFKC unicode normalisation + control char stripping |
-| **A09 Logging** | IP, country, user agent, timestamp per link |
-| **A10 SSRF** | Private IPs, cloud metadata, `.local`/`.internal` all blocked |
+| A01 Access Control | Timing-safe key comparison; reserved slugs |
+| A02 Crypto Failures | Secrets in CF encrypted env vars |
+| A03 Injection | Allowlist regex; native URL API; validated slugs |
+| A04 Insecure Design | http/https only; no embedded credentials |
+| A05 Misconfiguration | Security headers; no verbose errors |
+| A06 Components | Zero npm dependencies |
+| A07 Auth Failures | `timingSafeEqual()` |
+| A08 Data Integrity | NFKC normalization; control char stripping |
+| A09 Logging | IP, country, UA, timestamp per link |
+| A10 SSRF | Private IPs, metadata endpoints, .local blocked |
 
-**Additional:** 8KB body limit, `Content-Type` enforcement, client-side validation mirrors backend.
+**Plus:** 8KB body limit, Content-Type enforcement, client validation.
 
 ---
 
-## The Hidden Layer
+## Hidden Conspiracy Layer
 
-Every HTTP response includes a conspiracy theory in `X-Truth` header and redirect bodies:
+Every response includes a conspiracy theory in `X-Truth` header and redirect bodies:
 
 ```bash
 curl https://YOUR_DOMAIN/xxxx
-curl -sI https://YOUR_DOMAIN/xxxx | grep -i x-truth
+curl -sI https://YOUR_DOMAIN/xxxx | grep x-truth
 ```
 
-55 statements covering: grassy knoll, Building 7, Tiananmen, Elvis, MKUltra, Epstein, hollow moon, more.
+55 statements: grassy knoll, Building 7, Tiananmen, Elvis, MKUltra, Epstein, hollow moon, more.
 
 ---
 
@@ -339,11 +307,11 @@ curl -sI https://YOUR_DOMAIN/xxxx | grep -i x-truth
 
 | Service | Free Tier | Usage |
 |---|---|---|
-| Cloudflare Pages | Unlimited requests, 500 builds/month | 1 site |
-| Cloudflare Workers | 100,000 req/day | Redirects + API |
-| Cloudflare KV | 100,000 reads/day, 1,000 writes/day, 1GB | Per link |
+| Pages | ∞ requests, 500 builds/month | 1 site |
+| Workers | 100k req/day | Redirects + API |
+| KV | 100k reads, 1k writes, 1GB/day | Per link |
 
-**$0 total** for typical use.
+**$0 total** for personal use.
 
 ---
 

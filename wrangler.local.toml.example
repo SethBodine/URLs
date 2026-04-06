@@ -1,0 +1,12 @@
+# wrangler.local.toml.example
+#
+# This file shows how to configure KV bindings for local development.
+# Copy this to wrangler.local.toml (gitignored) and fill in your local namespace IDs.
+#
+# For production deployments via Cloudflare Pages, the KV binding is configured
+# in the dashboard (Settings → Functions → KV namespace bindings), not here.
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "YOUR_LOCAL_NAMESPACE_ID"           # from: wrangler kv:namespace create "local-links"
+preview_id = "YOUR_PREVIEW_NAMESPACE_ID" # from: wrangler kv:namespace create "local-links" --preview
