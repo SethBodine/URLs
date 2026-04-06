@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+echo "--- DEBUG START ---"
+echo "Current user: $(whoami)"
+echo "Checking for KV_NAMESPACE_ID..."
+env | grep KV_NAMESPACE_ID || echo "VARIABLE NOT FOUND IN SYSTEM ENV"
+echo "--- DEBUG END ---"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Cloudflare Pages Build Script
 # ─────────────────────────────────────────────────────────────────────────────
