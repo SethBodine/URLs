@@ -1,133 +1,151 @@
 # Link Shortener — Self-Hosted on Cloudflare Pages
 
-A minimal, secure, free link shortener built on Cloudflare Pages + Workers + KV.
+Minimal, secure, free link shortener on Cloudflare Pages + Workers + KV.
 
-**Stack:** Cloudflare pulls from GitHub → deploys to Pages + KV  
-**Cost:** $0 within Cloudflare's free tier  
+**Cost:** $0 (Cloudflare free tier)  
 **Licence:** MIT  
-**Security:** All secrets in Cloudflare only — GitHub repo contains zero credentials
+**Security:** All secrets in Cloudflare only
 
 ---
 
-## Architecture & Trust Model
+## Two Deployment Options
 
-**Code:** Public GitHub repository  
-**Secrets:** Cloudflare environment variables (encrypted, never leave CF infrastructure)  
-**Build:** Cloudflare's infrastructure (not GitHub Actions)  
-**Deploy:** Automatic on every push to `main`
+You can deploy this in two ways, depending on your security preferences:
 
-**Repository contains:**
-- Application code only
-- Zero secrets
-- Zero KV namespace IDs
-- Zero account identifiers
+### Option A: Hardcode KV Namespace IDs (Simpler, Recommended)
 
-The KV binding and secrets are configured in the Cloudflare Pages dashboard. GitHub never sees any credentials or infrastructure topology.
+**Repo stays public.** KV namespace IDs are infrastructure identifiers, not credentials. An attacker can't read/write your data with just the namespace ID - they'd need your Cloudflare account credentials.
+
+**Pros:** Simple, no build script, easier to debug  
+**Cons:** Your infrastructure topology is visible (but harmless)
+
+### Option B: Inject IDs at Build Time (Zero IDs in Repo)
+
+**Repo can be public or private.** Use a build script that reads namespace IDs from Cloudflare environment variables at build time.
+
+**Pros:** Zero infrastructure identifiers in repo  
+**Cons:** More complex, requires build script, harder to debug
+
+Choose based on your threat model. **Most users should use Option A.**
 
 ---
 
 ## Features
 
-- 4-character short codes with optional custom slugs
-- QR code with custom centre logo (client-side)
-- Browser localStorage for recent links
-- Metadata: IP, country, user agent, timestamp per link
-- Key-protected admin panel (`/admin.html`)
-- JSON API with single/batch lookup
-- Conspiracy Easter eggs in HTTP responses
+- 4-character short codes + optional custom slugs
+- QR codes with custom logo (client-side)
+- Browser localStorage for history
+- Metadata: IP, country, user agent, timestamp
+- Admin panel (`/admin.html`)
+- JSON API (single/batch lookup)
+- Conspiracy Easter eggs
 - OWASP Top 10 mitigations
 - Zero npm dependencies
 - Domain-agnostic (all branding from `window.location`)
 
 ---
 
-## Deployment
+## Deployment — Option A (Recommended)
 
-### Step 1 — Push to GitHub
+### Step 1 — Create KV Namespaces
 
-```bash
-git init
-git add .
-git commit -m "initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git push -u origin main
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → KV**
+2. Create namespace (e.g. `shortener-links`) → **copy the namespace ID**
+3. Create preview namespace (e.g. `shortener-links-preview`) → **copy that ID**
+
+### Step 2 — Add IDs to wrangler.toml
+
+Edit `wrangler.toml` in your local repo:
+
+```toml
+[[kv_namespaces]]
+binding = "LINKS"
+id = "abc123..."           # paste your production namespace ID here
+preview_id = "def456..."   # paste your preview namespace ID here
 ```
 
-Safe to make public — no secrets in the repo.
+Commit and push:
 
----
+```bash
+git add wrangler.toml
+git commit -m "add KV namespace IDs"
+git push
+```
 
-### Step 2 — Create KV Namespaces in Cloudflare
-
-1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → KV**
-2. Click **Create namespace**, name it (e.g. `shortener-links`), **Add**
-3. Note the namespace name (you'll select it from a dropdown shortly)
-4. Repeat for preview: create `shortener-links-preview`
-
----
-
-### Step 3 — Create Pages Project & Connect GitHub
+### Step 3 — Create Pages Project
 
 1. **Workers & Pages → Create → Pages → Connect to Git**
-2. Authorize GitHub, select your repository
+2. Select your repository
 3. Build settings:
+   - Production branch: `main`
+   - Build command: *(blank)*
+   - Build output directory: `public`
+4. Click **Save and Deploy**
 
-   | Setting | Value |
-   |---|---|
-   | Production branch | `main` |
-   | Framework preset | None |
-   | Build command | *(leave blank)* |
-   | Build output directory | `public` |
+### Step 4 — Set ADMIN_KEY
 
+1. **Settings → Environment variables → Add variable**
+2. For **Production** and **Preview**:
+   - Variable name: `ADMIN_KEY`
+   - Value: `openssl rand -hex 32`
+   - **Encrypt: ON**
+
+### Step 5 — Redeploy & Add Domain
+
+1. **Deployments → Retry deployment**
+2. **Custom domains → Set up domain**
+3. Test with the curl commands below
+
+---
+
+## Deployment — Option B (Zero IDs in Repo)
+
+### Step 1 — Create KV Namespaces
+
+Same as Option A - create two namespaces, **copy both IDs**.
+
+### Step 2 — Keep wrangler.toml as Placeholders
+
+**Do NOT edit wrangler.toml.** Leave it with the `__KV_NAMESPACE_ID__` tokens.
+
+### Step 3 — Create Pages Project
+
+1. **Workers & Pages → Create → Pages → Connect to Git**
+2. Select your repository  
+3. Build settings:
+   - Production branch: `main`
+   - **Build command:** `bash _build.sh`
+   - Build output directory: `public`
 4. **Don't click Save yet** — continue to Step 4
 
----
+### Step 4 — Set Build Environment Variables
 
-### Step 4 — Configure KV Binding
+Still on the project creation screen, scroll to **Environment variables**.
 
-Still on the project creation screen, scroll to **Functions** section:
+Add these **three** for **Production**:
 
-1. Under **KV namespace bindings**, click **Add binding**
-2. For **Production**:
-   - Variable name: `LINKS` (must match exactly)
-   - KV namespace: select `shortener-links` (or whatever you named it)
-3. For **Preview**:
-   - Variable name: `LINKS`
-   - KV namespace: select `shortener-links-preview`
+| Variable | Value | Encrypt? |
+|---|---|---|
+| `KV_NAMESPACE_ID` | Your production namespace ID | **No** |
+| `KV_PREVIEW_NAMESPACE_ID` | Your preview namespace ID | **No** |
+| `ADMIN_KEY` | `openssl rand -hex 32` | **Yes** |
 
----
+Repeat for **Preview** (same values or different).
 
-### Step 5 — Set ADMIN_KEY Secret
-
-Still on the creation screen, scroll to **Environment variables**:
-
-1. Click **Add variable**
-2. For **Production**:
-   - Variable name: `ADMIN_KEY`
-   - Value: generate with `openssl rand -hex 32`
-   - **Encrypt:** toggle **ON**
-3. For **Preview**: repeat (same key or different)
+**Why aren't the namespace IDs encrypted?** Build scripts can't read encrypted variables. Only `ADMIN_KEY` should be encrypted (it's a runtime variable).
 
 Now click **Save and Deploy**.
 
----
+### Step 5 — Add Domain
 
-### Step 6 — Add Custom Domain
-
-1. **Custom domains → Set up a custom domain**
-2. Enter your domain (e.g. `yourdomain.com`)
-3. CNAME added automatically if domain on Cloudflare DNS
-4. SSL provisions in ~60 seconds
-
-Site live at `https://yourdomain.com`.
+Same as Option A.
 
 ---
 
-### Step 7 — Verify
+## Verify Deployment
 
 ```bash
-# Shorten a URL
+# Shorten URL
 curl -X POST https://YOUR_DOMAIN/api/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com"}'
@@ -138,78 +156,41 @@ curl https://YOUR_DOMAIN/xxxx
 # Check conspiracy header
 curl -sI https://YOUR_DOMAIN/xxxx | grep x-truth
 
-# Test admin (should fail without key)
+# Test admin (should fail)
 curl https://YOUR_DOMAIN/api/admin
 
 # Test admin with key
 curl https://YOUR_DOMAIN/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY"
 
-# Open https://YOUR_DOMAIN/admin.html in browser
+# Open browser
+https://YOUR_DOMAIN/admin.html
 ```
-
----
-
-## Future Deployments
-
-Every push to `main` auto-deploys. No manual steps.
-
-Disable: **Settings → Builds & deployments → Pause deployments**
 
 ---
 
 ## Local Development
 
-**1. Install Wrangler:**
 ```bash
+# Install Wrangler
 npm install -g wrangler
 wrangler login
-```
 
-**2. Create local KV namespaces:**
-```bash
+# Create local namespaces
 wrangler kv:namespace create "local-links"
 wrangler kv:namespace create "local-links" --preview
-```
 
-Copy the IDs from output.
-
-**3. Create `wrangler.local.toml` (gitignored):**
-```bash
+# Create wrangler.local.toml (gitignored)
 cp wrangler.local.toml.example wrangler.local.toml
-# Edit and add your namespace IDs
-```
+# Edit: add your local namespace IDs
 
-**4. Create `.dev.vars` (gitignored):**
-```bash
+# Create .dev.vars (gitignored)
 echo "ADMIN_KEY=test-key" > .dev.vars
-```
 
-**5. Run:**
-```bash
+# Run dev server
 wrangler pages dev public
+# → http://localhost:8788
 ```
-
-Local site at `http://localhost:8788`.
-
----
-
-## Rotating Secrets
-
-**To rotate ADMIN_KEY:**
-
-1. Generate: `openssl rand -hex 32`
-2. **Settings → Environment variables → ADMIN_KEY → Edit**
-3. Paste new value, **Encrypt: ON**, save
-4. Redeploy (push to main or retry in dashboard)
-
-**To rotate KV namespaces (rare):**
-
-1. Create new namespaces
-2. **Settings → Functions → KV namespace bindings → Edit**
-3. Select new namespaces
-4. Redeploy
-5. Migrate data with Wrangler CLI if needed
 
 ---
 
@@ -217,57 +198,36 @@ Local site at `http://localhost:8788`.
 
 `https://YOUR_DOMAIN/admin.html` → enter `ADMIN_KEY`
 
-Session in `sessionStorage` (domain-scoped, clears on tab close).
-
-**Features:**
-- Link count + today's count
-- Table: slug, URL, IP, country, user agent, date
-- Real-time search/filter
-- Delete links
-- Purge all
+Session in `sessionStorage` (clears on tab close).
 
 ---
 
 ## API Reference
 
-All endpoints: `Content-Type: application/json`, 8KB limit, `X-Truth` header.
-
 ### `POST /api/shorten`
-
 ```json
 { "url": "https://example.com", "customSlug": "my-link" }
 ```
+Response: `{ "shortUrl": "...", "slug": "...", "url": "..." }`
 
-`customSlug` optional (2–32 chars, `a-z 0-9 - _`).
-
-**Response:**
-```json
-{ "shortUrl": "https://YOUR_DOMAIN/xk2a", "slug": "xk2a", "url": "..." }
-```
-
-**Errors:** `400` (bad JSON), `409` (slug taken), `422` (validation failed)
+Errors: `400` (bad JSON), `409` (slug taken), `422` (validation failed)
 
 ### `POST /api/lookup`
-
 ```json
 { "slug": "xk2a" }
 { "slugs": ["xk2a", "yz9q"] }
 ```
-
 Add `Authorization: Bearer ADMIN_KEY` for `ip`/`userAgent`.
 
 ### `GET /api/admin`
-
 List all. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ### `DELETE /api/admin`
-
-Requires auth.
-
 ```json
 { "slug": "xk2a" }
 { "purgeAll": true }
 ```
+Requires auth.
 
 ---
 
@@ -275,24 +235,24 @@ Requires auth.
 
 | Risk | Mitigation |
 |---|---|
-| A01 Access Control | Timing-safe key comparison; reserved slugs |
+| A01 Access Control | Timing-safe comparison; reserved slugs |
 | A02 Crypto Failures | Secrets in CF encrypted env vars |
-| A03 Injection | Allowlist regex; native URL API; validated slugs |
-| A04 Insecure Design | http/https only; no embedded credentials |
+| A03 Injection | Allowlist regex; native URL API |
+| A04 Insecure Design | http/https only; no embedded creds |
 | A05 Misconfiguration | Security headers; no verbose errors |
 | A06 Components | Zero npm dependencies |
 | A07 Auth Failures | `timingSafeEqual()` |
-| A08 Data Integrity | NFKC normalization; control char stripping |
-| A09 Logging | IP, country, UA, timestamp per link |
-| A10 SSRF | Private IPs, metadata endpoints, .local blocked |
+| A08 Data Integrity | NFKC normalization; control chars stripped |
+| A09 Logging | IP, country, UA, timestamp |
+| A10 SSRF | Private IPs, metadata endpoints blocked |
 
-**Plus:** 8KB body limit, Content-Type enforcement, client validation.
+Plus: 8KB body limit, Content-Type enforcement, client validation.
 
 ---
 
-## Hidden Conspiracy Layer
+## Hidden Layer
 
-Every response includes a conspiracy theory in `X-Truth` header and redirect bodies:
+Conspiracy theories in `X-Truth` header and redirect bodies:
 
 ```bash
 curl https://YOUR_DOMAIN/xxxx
@@ -305,11 +265,11 @@ curl -sI https://YOUR_DOMAIN/xxxx | grep x-truth
 
 ## Costs
 
-| Service | Free Tier | Usage |
-|---|---|---|
-| Pages | ∞ requests, 500 builds/month | 1 site |
-| Workers | 100k req/day | Redirects + API |
-| KV | 100k reads, 1k writes, 1GB/day | Per link |
+| Service | Free Tier |
+|---|---|
+| Pages | ∞ requests, 500 builds/month |
+| Workers | 100k req/day |
+| KV | 100k reads, 1k writes, 1GB/day |
 
 **$0 total** for personal use.
 
