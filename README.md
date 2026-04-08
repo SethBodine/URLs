@@ -1,6 +1,6 @@
-# Link Shortener — Self-Hosted on Cloudflare Pages
+# URL Shortener — Self-Hosted on Cloudflare Pages
 
-Minimal, secure, free link shortener on Cloudflare Pages + Workers + KV.
+Minimal, secure, free URL shortener on Cloudflare Pages + Workers + KV.
 
 **Cost:** $0 (Cloudflare free tier)  
 **Licence:** MIT  
