@@ -23,7 +23,7 @@
   <meta name="twitter:title" content="URL Shortener — Fast, Free, Privacy-Respecting" />
   <meta name="twitter:description" content="Shorten long URLs instantly with custom slugs and QR codes." />
   
-  <!-- Structured Data for Search Engines -->
+  <!-- Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -31,11 +31,7 @@
     "name": "URL Shortener",
     "description": "Fast, free, privacy-respecting URL shortener with custom slugs and QR codes",
     "applicationCategory": "UtilitiesApplication",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    }
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
   }
   </script>
   
@@ -203,7 +199,7 @@
       text-align: center;
     }
 
-    .qr-code canvas {
+    #qr-canvas {
       max-width: 100%;
       height: auto;
     }
@@ -366,42 +362,35 @@
   </div>
 
   <footer>
-    <span id="footer-domain"></span> • <a href="/admin.html" class="admin-link">Admin</a>
+    <span id="footer-domain"></span> • <a href="./admin.html" class="admin-link">Admin</a>
   </footer>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
   <script>
     // ── Runtime domain injection ─────────────────────────────────────────────
     (function() {
       const hostname = window.location.hostname;
       const origin   = window.location.origin;
 
-      // Page title and subtitle
       document.title = hostname + ' — URL Shortener';
       document.getElementById('page-title').textContent = 'URL Shortener';
       document.getElementById('page-subtitle').textContent = 'Shorten URLs at ' + hostname;
-
-      // SEO meta tags
       document.getElementById('canonical-url').href = origin;
       document.getElementById('og-url').content = origin;
 
-      // Footer
       const footer = document.getElementById('footer-domain');
       if (footer) footer.textContent = hostname;
     })();
 
     const STORAGE_KEY = 'ls_history_' + window.location.hostname;
     let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    let currentQR = null;
     let currentShortUrl = '';
+    let qrCodeImage = null;
 
     // ── Smart https:// handling ──────────────────────────────────────────────
     const urlInput = document.getElementById('url-input');
-    
-    // Set default value
     urlInput.value = 'https://';
     
-    // Move cursor to end
     urlInput.addEventListener('focus', function() {
       if (this.value === 'https://') {
         setTimeout(() => {
@@ -410,18 +399,15 @@
       }
     });
 
-    // Prevent duplicate https://
     urlInput.addEventListener('input', function() {
       let val = this.value;
       
-      // Remove duplicate https:// if pasted
       if (val.startsWith('https://https://')) {
         this.value = val.replace('https://https://', 'https://');
       } else if (val.startsWith('http://https://')) {
         this.value = val.replace('http://https://', 'https://');
       }
       
-      // Don't allow deleting the https:// prefix
       if (!val.startsWith('https://') && !val.startsWith('http://')) {
         this.value = 'https://' + val;
       }
@@ -437,13 +423,11 @@
       const errorDiv = document.getElementById('error');
       const resultDiv = document.getElementById('result');
 
-      // Validate URL
       if (url === 'https://' || url === 'http://') {
         showError('Please enter a valid URL');
         return;
       }
 
-      // Disable button
       submitBtn.disabled = true;
       submitBtn.textContent = 'Shortening...';
       errorDiv.classList.remove('show');
@@ -462,18 +446,13 @@
           throw new Error(data.error || 'Failed to shorten URL');
         }
 
-        // Show result
         currentShortUrl = data.shortUrl;
         document.getElementById('short-url').textContent = data.shortUrl;
         resultDiv.classList.add('show');
 
-        // Generate QR code
         generateQR(data.shortUrl);
-
-        // Add to history
         addToHistory(data.shortUrl, url);
 
-        // Reset form
         urlInput.value = 'https://';
         document.getElementById('slug-input').value = '';
 
@@ -491,17 +470,23 @@
       errorDiv.classList.add('show');
     }
 
+    // ── QR Code Generation ───────────────────────────────────────────────────
     function generateQR(url) {
       const canvas = document.getElementById('qr-canvas');
       const ctx = canvas.getContext('2d');
       
-      // Clear previous QR
+      // Clear canvas
       canvas.width = 300;
       canvas.height = 300;
       ctx.clearRect(0, 0, 300, 300);
 
-      // Generate QR with qrcodejs
-      const qr = new QRCode(canvas, {
+      // Create temporary container for QRCode library
+      const tempDiv = document.createElement('div');
+      tempDiv.style.display = 'none';
+      document.body.appendChild(tempDiv);
+
+      // Generate QR code
+      new QRCode(tempDiv, {
         text: url,
         width: 300,
         height: 300,
@@ -510,32 +495,45 @@
         correctLevel: QRCode.CorrectLevel.H
       });
 
-      currentQR = canvas;
-
-      // Add center logo box after a brief delay
+      // Wait for QR code to render, then copy to canvas
       setTimeout(() => {
-        const boxSize = 60;
-        const cx = 150;
-        const cy = 150;
-
-        // White box
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
-
-        // Border
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
-
-        // Label
-        const hostname = window.location.hostname;
-        const label = hostname.split('.')[0];
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 16px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, cx, cy);
+        const qrImg = tempDiv.querySelector('img');
+        if (qrImg && qrImg.complete) {
+          ctx.drawImage(qrImg, 0, 0);
+          addCenterLogo(ctx, 300, 300);
+          tempDiv.remove();
+        } else if (qrImg) {
+          qrImg.onload = () => {
+            ctx.drawImage(qrImg, 0, 0);
+            addCenterLogo(ctx, 300, 300);
+            tempDiv.remove();
+          };
+        }
       }, 100);
+    }
+
+    function addCenterLogo(ctx, width, height) {
+      const boxSize = 60;
+      const cx = width / 2;
+      const cy = height / 2;
+
+      // White box
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
+
+      // Border
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
+
+      // Label
+      const hostname = window.location.hostname;
+      const label = hostname.split('.')[0];
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 16px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, cy);
     }
 
     function copyShortUrl() {
@@ -548,13 +546,13 @@
       const canvas = document.getElementById('qr-canvas');
       const link = document.createElement('a');
       link.download = 'qr-code.png';
-      link.href = canvas.toDataURL();
+      link.href = canvas.toDataURL('image/png');
       link.click();
     }
 
     function addToHistory(shortUrl, longUrl) {
       history.unshift({ shortUrl, longUrl, date: Date.now() });
-      history = history.slice(0, 10); // Keep last 10
+      history = history.slice(0, 10);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
       renderHistory();
     }
@@ -585,7 +583,6 @@
       }
     }
 
-    // Initial render
     renderHistory();
   </script>
 </body>
