@@ -8,7 +8,7 @@ import {
   readJsonBody,
 } from '../_security.js';
 
-function unauthorized() {
+function unauthorized(request) {
   return jsonResponse(
     { error: 'Unauthorized. Your clearance level is insufficient.', truth: getRandomConspiracy() },
     401,
@@ -34,7 +34,7 @@ async function getAllLinks(kv) {
 // GET /api/admin — list all links
 export async function onRequestGet(context) {
   const { request, env } = context;
-  if (!checkAdminAuth(request, env)) return unauthorized();
+  if (!checkAdminAuth(request, env)) return unauthorized(request);
 
   try {
     const links = await getAllLinks(env.LINKS);
@@ -51,7 +51,7 @@ export async function onRequestGet(context) {
 // DELETE /api/admin — delete one slug or purge all
 export async function onRequestDelete(context) {
   const { request, env } = context;
-  if (!checkAdminAuth(request, env)) return unauthorized();
+  if (!checkAdminAuth(request, env)) return unauthorized(request);
 
   const bodyResult = await readJsonBody(request);
   if (!bodyResult.ok) {

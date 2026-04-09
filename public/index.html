@@ -54,7 +54,7 @@
       --shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    html { font-size: 16px; }
+    html { font-size: 16px; scroll-behavior: smooth; }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -271,6 +271,49 @@
       margin-top: 0.5rem;
     }
 
+    /* API Documentation */
+    .api-docs {
+      margin-top: 4rem;
+    }
+
+    .api-docs h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    .api-endpoint {
+      margin-bottom: 2rem;
+    }
+
+    .api-endpoint h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--primary);
+    }
+
+    .api-endpoint p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      margin-bottom: 0.75rem;
+    }
+
+    code {
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+
     footer {
       text-align: center;
       margin-top: auto;
@@ -299,6 +342,10 @@
       
       .card {
         padding: 1.5rem;
+      }
+
+      pre {
+        font-size: 0.75rem;
       }
     }
   </style>
@@ -359,10 +406,78 @@
         <button class="clear-history" onclick="clearHistory()">Clear History</button>
       </div>
     </div>
+
+    <!-- API Documentation -->
+    <div class="api-docs">
+      <div class="card">
+        <h2>API Reference</h2>
+
+        <div class="api-endpoint">
+          <h3>POST /api/shorten</h3>
+          <p>Create a shortened URL</p>
+          <pre><code>{
+  "url": "https://example.com/long/url",
+  "customSlug": "my-link"  // optional
+}</code></pre>
+          <p><strong>Response:</strong></p>
+          <pre><code>{
+  "shortUrl": "<span id="api-origin-1"></span>/xk2a",
+  "slug": "xk2a",
+  "url": "https://example.com/long/url"
+}</code></pre>
+          <p><strong>Example:</strong></p>
+          <pre><code>curl -X POST <span id="api-origin-2"></span>/api/shorten \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'</code></pre>
+        </div>
+
+        <div class="api-endpoint">
+          <h3>POST /api/lookup</h3>
+          <p>Look up one or more shortened URLs</p>
+          <pre><code>// Single lookup
+{ "slug": "xk2a" }
+
+// Batch lookup (max 50)
+{ "slugs": ["xk2a", "yz9q"] }</code></pre>
+          <p><strong>Response (single):</strong></p>
+          <pre><code>{
+  "slug": "xk2a",
+  "shortUrl": "<span id="api-origin-3"></span>/xk2a",
+  "url": "https://example.com/long/url",
+  "createdAt": "2026-04-06T12:00:00.000Z",
+  "country": "NZ"
+}</code></pre>
+          <p>Add <code>Authorization: Bearer YOUR_ADMIN_KEY</code> header to also receive <code>ip</code> and <code>userAgent</code> fields.</p>
+        </div>
+
+        <div class="api-endpoint">
+          <h3>GET /api/admin</h3>
+          <p>List all shortened URLs (requires authentication)</p>
+          <pre><code>curl <span id="api-origin-4"></span>/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY"</code></pre>
+        </div>
+
+        <div class="api-endpoint">
+          <h3>DELETE /api/admin</h3>
+          <p>Delete a link or purge all links (requires authentication)</p>
+          <pre><code>// Delete one link
+curl -X DELETE <span id="api-origin-5"></span>/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"slug":"xk2a"}'
+
+// Purge all links
+curl -X DELETE <span id="api-origin-6"></span>/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"purgeAll":true}'</code></pre>
+        </div>
+      </div>
+    </div>
   </div>
 
   <footer>
-    <span id="footer-domain"></span> • <a href="./admin.html" class="admin-link">Admin</a>
+    <span id="footer-domain"></span> • <a href="./admin.html" class="admin-link">Admin</a> • <a href="#api-reference" class="admin-link">API</a>
   </footer>
 
   <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
@@ -380,6 +495,12 @@
 
       const footer = document.getElementById('footer-domain');
       if (footer) footer.textContent = hostname;
+
+      // Update API docs with current origin
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById('api-origin-' + i);
+        if (el) el.textContent = origin;
+      }
     })();
 
     const STORAGE_KEY = 'ls_history_' + window.location.hostname;
