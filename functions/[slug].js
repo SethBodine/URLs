@@ -7,14 +7,9 @@ export async function onRequest(context) {
   const { request, env, params } = context;
   const slug = params.slug;
 
-  // Pass through — no slug or looks like a static asset/API route
-  if (!slug || slug.startsWith('api') || slug.includes('.')) {
+  // Pass through — no slug or looks like a static asset/API route or admin page
+  if (!slug || slug.startsWith('api') || slug.includes('.') || slug === 'admin') {
     return context.next();
-  }
-
-  // Redirect /admin to /admin.html (Cloudflare strips .html extensions)
-  if (slug === 'admin') {
-    return Response.redirect(new URL('/admin.html', request.url).href, 301);
   }
 
   // Basic slug sanity before touching KV — prevents KV abuse with junk keys
