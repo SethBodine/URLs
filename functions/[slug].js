@@ -12,6 +12,11 @@ export async function onRequest(context) {
     return context.next();
   }
 
+  // Redirect /admin to /admin.html (Cloudflare strips .html extensions)
+  if (slug === 'admin') {
+    return Response.redirect(new URL('/admin.html', request.url).href, 301);
+  }
+
   // Basic slug sanity before touching KV — prevents KV abuse with junk keys
   if (!/^[a-z0-9][a-z0-9\-_]{0,63}$/i.test(slug) || slug.length > 64) {
     return new Response(getStatusMessage(400), {
