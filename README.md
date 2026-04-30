@@ -274,9 +274,11 @@ Create a shortened URL.
 
 **Headers (optional — for My Links ownership):**
 ```
-X-Fingerprint: <raw browser fingerprint string>
+X-Fingerprint: "<raw browser fingerprint string>"
 X-Owner-Hash:  <HMAC hash returned or cached from previous request>
 ```
+
+> **curl note:** `X-Fingerprint` often contains characters (colons, slashes, equals signs) that break shell quoting. Always wrap its value in double quotes inside the `-H` string, as shown in the curl examples below. The server strips the surrounding quotes automatically.
 
 **Response `200`:**
 ```json
@@ -334,7 +336,7 @@ List all URLs linked to the current browser fingerprint. Requires owner headers.
 
 **Headers:**
 ```
-X-Fingerprint: <raw fingerprint>
+X-Fingerprint: "<raw fingerprint>"
 X-Owner-Hash:  <cached hash>
 ```
 
@@ -416,6 +418,27 @@ curl -X POST https://b0x.nz/api/shorten \
 curl -X POST https://b0x.nz/api/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","customSlug":"demo","expiryDays":30,"preview":true}'
+
+# Shorten and link to your account (ownership)
+# X-Fingerprint must be wrapped in "..." — it contains special chars that break shell quoting
+# X-Owner-Hash is the value returned in ownerHash from a previous shorten response
+curl -X POST https://b0x.nz/api/shorten \
+  -H "Content-Type: application/json" \
+  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
+  -H 'X-Owner-Hash: <your-owner-hash-here>' \
+  -d '{"url":"https://example.com"}'
+
+# List your links
+curl https://b0x.nz/api/mylinks \
+  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
+  -H 'X-Owner-Hash: <your-owner-hash-here>'
+
+# Delete one of your links
+curl -X DELETE https://b0x.nz/api/mylinks \
+  -H "Content-Type: application/json" \
+  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
+  -H 'X-Owner-Hash: <your-owner-hash-here>' \
+  -d '{"slug":"ab3x"}'
 
 # Preview a slug without visiting it
 curl -X POST https://b0x.nz/api/lookup \
