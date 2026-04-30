@@ -5,12 +5,22 @@ pages_build_output_dir = "public"
 # ─────────────────────────────────────────────────────────────────────────────
 # KV NAMESPACE BINDING
 # ─────────────────────────────────────────────────────────────────────────────
-# The tokens below are substituted at build time by _build.sh.
-# Actual namespace IDs are stored as Cloudflare build environment variables.
-# See README.md for configuration instructions.
-# ─────────────────────────────────────────────────────────────────────────────
-
 [[kv_namespaces]]
 binding = "LINKS"
 id = "ac7a277e3c554a4cb072071e976b28c6"
 preview_id = "ac7a277e3c554a4cb072071e976b28c6"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SECRETS (set via: wrangler secret put <NAME>)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ADMIN_KEY          — Bearer token for /api/admin endpoints (min 16 chars)
+#                      wrangler secret put ADMIN_KEY
+#
+# OWNER_HASH_SECRET  — HMAC secret for browser fingerprint derivation (min 32 chars)
+#                      Used to verify X-Owner-Hash headers on /api/mylinks
+#                      wrangler secret put OWNER_HASH_SECRET
+#
+# Both must be set in the Cloudflare Pages dashboard under Settings > Environment Variables
+# as "Encrypted" variables for production.
+# ─────────────────────────────────────────────────────────────────────────────

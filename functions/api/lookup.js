@@ -5,6 +5,7 @@ import {
   CORS_PUBLIC,
   CORS_ADMIN,
   checkAdminAuth,
+  getVerifiedOwnerHash,
   validateLookupSlug,
   readJsonBody,
 } from '../_security.js';
@@ -13,15 +14,22 @@ const BATCH_LIMIT = 50;
 
 function formatRecord(record, baseUrl, includePrivate) {
   const out = {
-    slug:      record.slug,
-    shortUrl:  `${baseUrl}/${record.slug}`,
-    url:       record.url,
-    createdAt: record.createdAt,
-    country:   record.country || null,
+    slug:        record.slug,
+    shortUrl:    `${baseUrl}/${record.slug}`,
+    url:         record.url,
+    createdAt:   record.createdAt,
+    previewMode: record.previewMode || false,
+    expiresAt:   record.expiresAt || null,
+    accessCount: record.accessCount || 0,
+    lastAccessed:record.lastAccessed || null,
+    creatorCountry: record.creatorCountry || record.country || null,
   };
   if (includePrivate) {
-    out.ip        = record.ip        || null;
-    out.userAgent = record.userAgent || null;
+    out.creatorIp   = record.creatorIp   || record.ip        || null;
+    out.creatorUa   = record.creatorUa   || record.userAgent || null;
+    out.creatorCity = record.creatorCity || null;
+    out.ownerHash   = record.ownerHash   || null;
+    out.accessLog   = record.accessLog   || [];
   }
   return out;
 }
@@ -34,8 +42,9 @@ export async function onRequestPost(context) {
     return jsonResponse({ error: bodyResult.error, truth: getRandomConspiracy() }, 400, CORS_PUBLIC);
   }
 
-  const isAdmin  = checkAdminAuth(request, env);
-  const baseUrl  = new URL(request.url).origin;
+  const isAdmin    = checkAdminAuth(request, env);
+  const ownerHash  = await getVerifiedOwnerHash(request, env);
+  const baseUrl    = new URL(request.url).origin;
   const { slug, slugs } = bodyResult.body;
 
   // ── Single lookup ─────────────────────────────────────────────────────────
@@ -54,7 +63,11 @@ export async function onRequestPost(context) {
       );
     }
 
-    return jsonResponse(formatRecord(record, baseUrl, isAdmin), 200, CORS_PUBLIC);
+    // Include private fields for admin OR verified owner
+    const isOwner = ownerHash && record.ownerHash && ownerHash === record.ownerHash;
+    const includePrivate = isAdmin || isOwner;
+
+    return jsonResponse(formatRecord(record, baseUrl, includePrivate), 200, CORS_PUBLIC);
   }
 
   // ── Batch lookup ──────────────────────────────────────────────────────────
@@ -66,7 +79,6 @@ export async function onRequestPost(context) {
       return jsonResponse({ error: `Batch requests are limited to ${BATCH_LIMIT} slugs.`, truth: getRandomConspiracy() }, 400, CORS_PUBLIC);
     }
 
-    // Validate every slug before touching KV
     const validated = [];
     for (const raw of slugs) {
       const sv = validateLookupSlug(raw);
@@ -82,8 +94,12 @@ export async function onRequestPost(context) {
     await Promise.all(
       validated.map(async (s) => {
         const record = await env.LINKS.get(s, { type: 'json' });
-        if (record) results.push(formatRecord(record, baseUrl, isAdmin));
-        else        notFound.push(s);
+        if (record) {
+          const isOwner = ownerHash && record.ownerHash && ownerHash === record.ownerHash;
+          results.push(formatRecord(record, baseUrl, isAdmin || isOwner));
+        } else {
+          notFound.push(s);
+        }
       })
     );
 
@@ -94,7 +110,6 @@ export async function onRequestPost(context) {
     );
   }
 
-  // ── Missing required field ────────────────────────────────────────────────
   return jsonResponse({
     error:    'Payload must include "slug" (string) or "slugs" (array of strings).',
     examples: { single: { slug: 'ab3x' }, batch: { slugs: ['ab3x', 'yz9q'] } },

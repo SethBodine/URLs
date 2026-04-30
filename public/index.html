@@ -3,61 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>URL shortener</title>
-  
-  <!-- SEO Meta Tags -->
-  <meta name="description" content="Fast, free, privacy-respecting URL shortener. Shorten long links instantly with custom slugs and QR codes." />
-  <meta name="keywords" content="URL shortener, link shortener, short links, QR code generator, custom URLs" />
-  <meta name="author" content="URL Shortener" />
+  <title>b0x.nz — URL Shortener</title>
+  <meta name="description" content="Fast, free, privacy-respecting URL shortener. Shorten long links instantly with custom slugs." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" id="canonical-url" href="" />
-  
-  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" id="og-url" content="" />
-  <meta property="og:title" content="URL Shortener — Fast, Free, Privacy-Respecting" />
-  <meta property="og:description" content="Shorten long URLs instantly with custom slugs and QR codes. No tracking, no accounts, completely free." />
-  
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="URL Shortener — Fast, Free, Privacy-Respecting" />
-  <meta name="twitter:description" content="Shorten long URLs instantly with custom slugs and QR codes." />
-  
-  <!-- Structured Data -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "URL Shortener",
-    "description": "Fast, free, privacy-respecting URL shortener with custom slugs and QR codes",
-    "applicationCategory": "UtilitiesApplication",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-  }
-  </script>
-  
+  <meta property="og:title" content="b0x.nz — URL Shortener" />
+  <meta property="og:description" content="Shorten URLs instantly. Custom slugs, preview mode, expiry options." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #fafafa;
-      --surface: #ffffff;
-      --border: #e5e7eb;
-      --text: #111827;
-      --text-muted: #6b7280;
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --success: #059669;
-      --radius: 8px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.05);
+      --bg:       #0a0a0f;
+      --surface:  #111118;
+      --raised:   #18181f;
+      --border:   #242430;
+      --border2:  #2e2e3d;
+      --text:     #e8e8f0;
+      --muted:    #666680;
+      --dim:      #3a3a50;
+      --accent:   #7c5cfc;
+      --accent2:  #a78bfa;
+      --green:    #10b981;
+      --amber:    #f59e0b;
+      --red:      #ef4444;
+      --radius:   10px;
+      --mono:     'JetBrains Mono', monospace;
+      --sans:     'DM Sans', sans-serif;
     }
 
     html { font-size: 16px; scroll-behavior: smooth; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -65,646 +47,1052 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
+      padding: 3rem 1rem 4rem;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,92,252,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,92,252,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
     }
 
     .container {
       width: 100%;
-      max-width: 560px;
+      max-width: 580px;
+      position: relative;
+      z-index: 1;
     }
 
+    /* ── Header ── */
     header {
       text-align: center;
-      margin-bottom: 3rem;
+      margin-bottom: 2.5rem;
     }
 
-    h1 {
-      font-size: 1.875rem;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      letter-spacing: -0.025em;
+    .logo {
+      font-family: var(--mono);
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, var(--accent2) 0%, var(--accent) 60%, #5b21b6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.4rem;
     }
 
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 0.9375rem;
+    .tagline {
+      color: var(--muted);
+      font-size: 0.875rem;
     }
 
-    .card {
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 0;
       background: var(--surface);
-      border-radius: var(--radius);
       border: 1px solid var(--border);
-      padding: 2rem;
-      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 4px;
       margin-bottom: 1.5rem;
     }
 
-    label {
-      display: block;
-      font-size: 0.875rem;
+    .tab {
+      flex: 1;
+      padding: 0.55rem 0.5rem;
+      font-size: 0.8125rem;
       font-weight: 500;
-      margin-bottom: 0.5rem;
-      color: var(--text);
+      font-family: var(--sans);
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
     }
 
-    input[type="text"], input[type="url"] {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      font-size: 0.9375rem;
+    .tab.active {
+      background: var(--raised);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    .tab:hover:not(.active) { color: var(--text); }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      font-family: inherit;
-      transition: border-color 0.2s;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-
-    .input-group {
+      padding: 1.75rem;
       margin-bottom: 1.25rem;
     }
 
-    .hint {
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      margin-top: 0.375rem;
-    }
+    .panel { display: none; }
+    .panel.active { display: block; }
 
-    button {
-      width: 100%;
-      padding: 0.875rem;
-      font-size: 0.9375rem;
-      font-weight: 500;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.2s;
-    }
-
-    button:hover:not(:disabled) {
-      background: var(--primary-hover);
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .result {
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      margin-top: 1.5rem;
-      display: none;
-    }
-
-    .result.show {
+    /* ── Form elements ── */
+    label {
       display: block;
-    }
-
-    .short-url {
-      font-size: 1.125rem;
+      font-size: 0.8125rem;
       font-weight: 500;
-      color: var(--success);
-      word-break: break-all;
-      margin-bottom: 1rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
-    .actions {
+    input[type="text"], input[type="url"], select {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      font-size: 0.9375rem;
+      font-family: var(--mono);
+      background: var(--raised);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,92,252,0.15);
+    }
+
+    select { cursor: pointer; }
+    select option { background: var(--surface); }
+
+    .field { margin-bottom: 1.1rem; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--dim);
+      margin-top: 0.35rem;
+    }
+
+    /* ── Toggle / Checkbox ── */
+    .toggle-row {
       display: flex;
+      align-items: center;
       gap: 0.75rem;
       margin-bottom: 1rem;
     }
 
-    .btn-secondary {
-      flex: 1;
-      padding: 0.625rem;
-      font-size: 0.875rem;
-      background: white;
-      color: var(--text);
+    .toggle {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border2);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; top: 3px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: #fff; }
+
+    .toggle-label { font-size: 0.875rem; color: var(--text); }
+    .toggle-label small { color: var(--muted); display: block; font-size: 0.75rem; margin-top: 0.1rem; }
+
+    /* ── Submit button ── */
+    .btn-primary {
+      width: 100%;
+      padding: 0.85rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: var(--sans);
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(124,92,252,0.35);
+      margin-top: 0.5rem;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent2);
+      box-shadow: 0 6px 20px rgba(124,92,252,0.45);
+    }
+
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Result ── */
+    .result-box {
+      background: rgba(16,185,129,0.07);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-top: 1.25rem;
+      display: none;
+    }
+
+    .result-box.show { display: block; }
+
+    .result-url {
+      font-family: var(--mono);
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--green);
+      word-break: break-all;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 0.85rem;
+    }
+
+    .result-meta span {
+      background: var(--raised);
       border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      margin-right: 0.4rem;
+      font-family: var(--mono);
     }
 
-    .btn-secondary:hover {
-      background: var(--bg);
+    .action-row {
+      display: flex;
+      gap: 0.6rem;
     }
 
-    .qr-code {
-      text-align: center;
+    .btn-sm {
+      flex: 1;
+      padding: 0.55rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      font-family: var(--sans);
+      background: var(--raised);
+      color: var(--text);
+      border: 1px solid var(--border2);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
     }
 
-    #qr-canvas {
-      max-width: 100%;
-      height: auto;
-    }
+    .btn-sm:hover { background: var(--border); border-color: var(--accent); }
 
-    .error {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: var(--radius);
-      padding: 1rem;
-      color: #991b1b;
+    /* ── Error ── */
+    .error-box {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      color: #fca5a5;
       font-size: 0.875rem;
       margin-top: 1rem;
       display: none;
     }
+    .error-box.show { display: block; }
 
-    .error.show {
-      display: block;
+    /* ── Preview lookup panel ── */
+    .lookup-result {
+      background: var(--raised);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 1.1rem;
+      margin-top: 1rem;
+      display: none;
     }
+    .lookup-result.show { display: block; }
+    .lookup-dest { font-family: var(--mono); font-size: 0.875rem; color: var(--accent2); word-break: break-all; margin-bottom: 0.5rem; }
+    .lookup-meta { font-size: 0.75rem; color: var(--muted); }
+    .lookup-meta b { color: var(--text); }
+    .lookup-meta .row { margin-bottom: 0.2rem; }
 
-    .history {
-      margin-top: 3rem;
-    }
-
-    .history h2 {
-      font-size: 1.125rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-    }
-
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.875rem;
-      border-bottom: 1px solid var(--border);
+    /* ── My Links panel ── */
+    .mylinks-empty {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
       font-size: 0.875rem;
     }
 
-    .history-item:last-child {
-      border-bottom: none;
+    .link-card {
+      background: var(--raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
     }
 
-    .history-url {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 500;
+    .link-card-slug {
+      font-family: var(--mono);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--accent2);
+      margin-bottom: 0.25rem;
     }
 
-    .history-url:hover {
-      text-decoration: underline;
-    }
+    .link-card-slug a { color: inherit; text-decoration: none; }
+    .link-card-slug a:hover { text-decoration: underline; }
 
-    .history-dest {
-      color: var(--text-muted);
+    .link-card-dest {
       font-size: 0.8125rem;
-      margin-top: 0.25rem;
+      color: var(--muted);
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      margin-bottom: 0.6rem;
     }
 
-    .clear-history {
-      background: none;
+    .link-card-meta {
+      font-size: 0.75rem;
+      color: var(--dim);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .pill {
+      background: var(--surface);
       border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 0.5rem 1rem;
-      width: auto;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.7rem;
+      font-family: var(--mono);
     }
 
-    /* API Documentation */
-    .api-docs {
-      margin-top: 4rem;
+    .pill.preview { border-color: var(--amber); color: var(--amber); }
+    .pill.expiry  { border-color: var(--red); color: var(--red); }
+    .pill.hits    { border-color: var(--green); color: var(--green); }
+
+    .link-card-actions {
+      display: flex;
+      gap: 0.5rem;
     }
 
-    .api-docs h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
+    .btn-xs {
+      padding: 0.35rem 0.7rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      font-family: var(--sans);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--text);
+      transition: background 0.15s;
     }
 
-    .api-endpoint {
-      margin-bottom: 2rem;
+    .btn-xs:hover { background: var(--border); }
+    .btn-xs.danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
+    .btn-xs.danger:hover { background: rgba(239,68,68,0.1); }
+
+    /* Access log modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-backdrop.show { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 560px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
     }
 
-    .api-endpoint h3 {
+    .modal h3 {
       font-size: 1rem;
       font-weight: 600;
-      margin-bottom: 0.75rem;
-      color: var(--primary);
+      margin-bottom: 1rem;
+      font-family: var(--mono);
+      color: var(--accent2);
     }
 
-    .api-endpoint p {
-      color: var(--text-muted);
+    .log-entry {
+      background: var(--raised);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+    }
+
+    .log-entry .le-row { color: var(--muted); margin-bottom: 0.15rem; }
+    .log-entry .le-row b { color: var(--text); }
+
+    .modal-close {
+      display: block;
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.6rem;
+      background: var(--raised);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--sans);
       font-size: 0.875rem;
-      margin-bottom: 0.75rem;
+      cursor: pointer;
     }
+    .modal-close:hover { color: var(--text); }
 
-    pre {
-      background: #1e293b;
-      color: #e2e8f0;
-      padding: 1rem;
-      border-radius: var(--radius);
-      overflow-x: auto;
-      font-size: 0.8125rem;
-      line-height: 1.5;
-      margin-bottom: 0.75rem;
-    }
+    /* QR */
+    .qr-wrap { text-align: center; margin-top: 0.85rem; }
+    #qr-canvas { max-width: 180px; height: auto; border-radius: 8px; }
 
-    code {
-      font-family: 'Monaco', 'Courier New', monospace;
-    }
-
+    /* Footer */
     footer {
-      text-align: center;
       margin-top: auto;
       padding-top: 3rem;
-      color: var(--text-muted);
-      font-size: 0.875rem;
+      color: var(--dim);
+      font-size: 0.8125rem;
+      text-align: center;
+      position: relative;
+      z-index: 1;
     }
 
-    .admin-link {
-      color: var(--text-muted);
-      text-decoration: none;
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    .fingerprint-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      background: rgba(124,92,252,0.1);
+      border: 1px solid rgba(124,92,252,0.2);
+      border-radius: 999px;
+      padding: 0.2rem 0.7rem;
+      color: var(--accent2);
+      margin-top: 0.75rem;
     }
 
-    .admin-link:hover {
-      color: var(--text);
+    .fp-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
     @media (max-width: 640px) {
-      body {
-        padding: 1.5rem 1rem;
-      }
-      
-      h1 {
-        font-size: 1.5rem;
-      }
-      
-      .card {
-        padding: 1.5rem;
-      }
-
-      pre {
-        font-size: 0.75rem;
-      }
+      body { padding: 1.5rem 0.75rem 3rem; }
+      .logo { font-size: 1.5rem; }
+      .card { padding: 1.25rem; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1 id="page-title">URL Shortener</h1>
-      <p class="subtitle" id="page-subtitle">Shorten URLs for easy sharing</p>
+      <div class="logo" id="logo-text">b0x.nz</div>
+      <p class="tagline" id="tagline">Shorten. Share. Disappear.</p>
     </header>
 
-    <div class="card">
-      <form id="shorten-form">
-        <div class="input-group">
-          <label for="url-input">Long URL</label>
-          <input 
-            type="url" 
-            id="url-input" 
-            placeholder="https://example.com/your/long/url" 
-            required 
-            autocomplete="off"
-          />
-          <div class="hint">Enter the URL you want to shorten</div>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('shorten')">Shorten</button>
+      <button class="tab" onclick="switchTab('preview')">Preview URL</button>
+      <button class="tab" onclick="switchTab('mylinks')">My Links</button>
+    </div>
+
+    <!-- ── SHORTEN PANEL ── -->
+    <div id="panel-shorten" class="panel active">
+      <div class="card">
+        <div class="field">
+          <label for="url-input">Destination URL</label>
+          <input type="url" id="url-input" placeholder="https://example.com/long/url" autocomplete="off" />
         </div>
 
-        <div class="input-group">
-          <label for="slug-input">Custom slug (optional)</label>
-          <input 
-            type="text" 
-            id="slug-input" 
-            placeholder="my-custom-link" 
-            autocomplete="off"
-          />
-          <div class="hint">2-32 characters: letters, numbers, hyphens, underscores</div>
+        <div class="field">
+          <label for="slug-input">Custom slug <span style="text-transform:none;font-weight:400;color:var(--dim)">(optional)</span></label>
+          <input type="text" id="slug-input" placeholder="my-link" autocomplete="off" />
+          <div class="hint">2–32 chars · letters, numbers, hyphens, underscores</div>
         </div>
 
-        <button type="submit" id="submit-btn">Shorten URL</button>
-      </form>
-
-      <div id="error" class="error"></div>
-
-      <div id="result" class="result">
-        <div class="short-url" id="short-url"></div>
-        <div class="actions">
-          <button class="btn-secondary" onclick="copyShortUrl()">Copy Link</button>
-          <button class="btn-secondary" onclick="downloadQR()">Download QR</button>
+        <div class="field">
+          <label for="expiry-select">Link expiry</label>
+          <select id="expiry-select">
+            <option value="">Never expires</option>
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90">90 days</option>
+            <option value="180">180 days</option>
+            <option value="365">365 days</option>
+          </select>
         </div>
-        <div class="qr-code">
-          <canvas id="qr-canvas"></canvas>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="preview-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+          <div class="toggle-label">
+            Preview interstitial
+            <small>Show a 5-second countdown before redirecting visitors</small>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="owner-toggle" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <div class="toggle-label">
+            Link to my browser
+            <small>Lets you manage this link from "My Links"</small>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="submit-btn" onclick="shortenUrl()">Shorten URL</button>
+
+        <div id="shorten-error" class="error-box"></div>
+
+        <div id="result-box" class="result-box">
+          <div class="result-url" id="result-url"></div>
+          <div class="result-meta" id="result-meta"></div>
+          <div class="action-row">
+            <button class="btn-sm" onclick="copyUrl()">Copy</button>
+            <button class="btn-sm" onclick="toggleQR()">QR Code</button>
+          </div>
+          <div class="qr-wrap" id="qr-wrap" style="display:none;">
+            <canvas id="qr-canvas"></canvas>
+          </div>
         </div>
       </div>
     </div>
 
-    <div id="history-section" class="history" style="display:none;">
+    <!-- ── PREVIEW PANEL ── -->
+    <div id="panel-preview" class="panel">
       <div class="card">
-        <h2>Recent Links</h2>
-        <div id="history-list"></div>
-        <button class="clear-history" onclick="clearHistory()">Clear History</button>
+        <div class="field">
+          <label for="preview-input">Short URL or slug</label>
+          <input type="text" id="preview-input" placeholder="b0x.nz/abc4 or just abc4" autocomplete="off" />
+          <div class="hint">Enter a shortened link to reveal its destination without visiting it</div>
+        </div>
+        <button class="btn-primary" onclick="previewLookup()">Reveal destination</button>
+        <div id="preview-error" class="error-box"></div>
+        <div id="preview-result" class="lookup-result">
+          <div class="lookup-dest" id="preview-dest"></div>
+          <div class="lookup-meta" id="preview-meta"></div>
+        </div>
       </div>
     </div>
 
-    <!-- API Documentation -->
-    <div class="api-docs">
+    <!-- ── MY LINKS PANEL ── -->
+    <div id="panel-mylinks" class="panel">
       <div class="card">
-        <h2>API Reference</h2>
-
-        <div class="api-endpoint">
-          <h3>POST /api/shorten</h3>
-          <p>Create a shortened URL</p>
-          <pre><code>{
-  "url": "https://example.com/long/url",
-  "customSlug": "my-link"  // optional
-}</code></pre>
-          <p><strong>Response:</strong></p>
-          <pre><code>{
-  "shortUrl": "<span id="api-origin-1"></span>/xk2a",
-  "slug": "xk2a",
-  "url": "https://example.com/long/url"
-}</code></pre>
-          <p><strong>Example:</strong></p>
-          <pre><code>curl -X POST <span id="api-origin-2"></span>/api/shorten \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com"}'</code></pre>
-        </div>
-
-        <div class="api-endpoint">
-          <h3>POST /api/lookup</h3>
-          <p>Look up one or more shortened URLs</p>
-          <pre><code>// Single lookup
-{ "slug": "xk2a" }
-
-// Batch lookup (max 50)
-{ "slugs": ["xk2a", "yz9q"] }</code></pre>
-          <p><strong>Response (single):</strong></p>
-          <pre><code>{
-  "slug": "xk2a",
-  "shortUrl": "<span id="api-origin-3"></span>/xk2a",
-  "url": "https://example.com/long/url",
-  "createdAt": "2026-04-06T12:00:00.000Z",
-  "country": "NZ"
-}</code></pre>
-          <p>Add <code>Authorization: Bearer YOUR_ADMIN_KEY</code> header to also receive <code>ip</code> and <code>userAgent</code> fields.</p>
-        </div>
-
-        <div class="api-endpoint">
-          <h3>GET /api/admin</h3>
-          <p>List all shortened URLs (requires authentication)</p>
-          <pre><code>curl <span id="api-origin-4"></span>/api/admin \
-  -H "Authorization: Bearer YOUR_ADMIN_KEY"</code></pre>
-        </div>
-
-        <div class="api-endpoint">
-          <h3>DELETE /api/admin</h3>
-          <p>Delete a link or purge all links (requires authentication)</p>
-          <pre><code>// Delete one link
-curl -X DELETE <span id="api-origin-5"></span>/api/admin \
-  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"slug":"xk2a"}'
-
-// Purge all links
-curl -X DELETE <span id="api-origin-6"></span>/api/admin \
-  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"purgeAll":true}'</code></pre>
-        </div>
+        <div id="mylinks-status" style="color:var(--muted);font-size:0.875rem;margin-bottom:1rem;">Loading your links…</div>
+        <div id="mylinks-list"></div>
       </div>
+    </div>
+
+  </div>
+
+  <!-- Access Log Modal -->
+  <div class="modal-backdrop" id="log-modal">
+    <div class="modal">
+      <h3 id="log-modal-title">Access Log</h3>
+      <div id="log-modal-body"></div>
+      <button class="modal-close" onclick="closeLogModal()">Close</button>
     </div>
   </div>
 
   <footer>
-    <span id="footer-domain"></span> • <a href="./admin.html" class="admin-link">Admin</a> • <a href="#api-reference" class="admin-link">API</a>
+    <span id="footer-domain"></span> &nbsp;·&nbsp; <a href="./admin.html">Admin</a>
+    <br/>
+    <div class="fingerprint-badge">
+      <span class="fp-dot"></span>
+      <span id="fp-display">generating fingerprint…</span>
+    </div>
   </footer>
 
-  <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
-    // ── Runtime domain injection ─────────────────────────────────────────────
-    (function() {
-      const hostname = window.location.hostname;
-      const origin   = window.location.origin;
+  // ═══════════════════════════════════════════════════════════════
+  // BROWSER FINGERPRINT + OWNER HASH
+  // ═══════════════════════════════════════════════════════════════
 
-      document.title = hostname + ' — URL Shortener';
-      document.getElementById('page-title').textContent = 'URL Shortener';
-      document.getElementById('page-subtitle').textContent = 'Shorten URLs at ' + hostname;
-      document.getElementById('canonical-url').href = origin;
-      document.getElementById('og-url').content = origin;
+  const FP_KEY    = 'b0x_fp_' + location.hostname;
+  const HASH_KEY  = 'b0x_oh_' + location.hostname;
 
-      const footer = document.getElementById('footer-domain');
-      if (footer) footer.textContent = hostname;
+  let currentFp   = '';  // raw fingerprint string (client-only)
+  let currentHash = '';  // HMAC hash returned by server
 
-      // Update API docs with current origin
-      for (let i = 1; i <= 6; i++) {
-        const el = document.getElementById('api-origin-' + i);
-        if (el) el.textContent = origin;
+  async function buildFingerprint() {
+    // Stable signals that don't change per-visit but distinguish browsers
+    const signals = [
+      navigator.userAgent,
+      navigator.language,
+      navigator.hardwareConcurrency,
+      navigator.deviceMemory || '',
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+      navigator.platform || '',
+      navigator.cookieEnabled,
+    ];
+
+    // Canvas fingerprint
+    try {
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('b0x.nz 🔒', 2, 15);
+      ctx.fillStyle = 'rgba(102,204,0,0.7)';
+      ctx.fillText('b0x.nz 🔒', 4, 17);
+      signals.push(c.toDataURL());
+    } catch {}
+
+    // Stored UUID for extra stability
+    let uuid = localStorage.getItem(FP_KEY + '_uuid');
+    if (!uuid) {
+      uuid = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36);
+      localStorage.setItem(FP_KEY + '_uuid', uuid);
+    }
+    signals.push(uuid);
+
+    const raw = signals.join('||');
+
+    // SHA-256 digest client-side (just for display — server re-derives with HMAC secret)
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+
+    return { raw, preview: hex.slice(0, 12) + '…' };
+  }
+
+  async function initFingerprint() {
+    try {
+      const { raw, preview } = await buildFingerprint();
+      currentFp = raw;
+
+      // Check if we have a cached server-derived hash
+      const cached = localStorage.getItem(HASH_KEY);
+      if (cached) {
+        currentHash = cached;
+      } else {
+        // Derive the hash server-side on first visit by shortening a dummy request
+        // We'll derive it lazily on first shorten action instead
       }
-    })();
 
-    const STORAGE_KEY = 'ls_history_' + window.location.hostname;
-    let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    let currentShortUrl = '';
-    let qrCodeImage = null;
+      document.getElementById('fp-display').textContent = 'fp: ' + preview;
+    } catch {
+      document.getElementById('fp-display').textContent = 'fingerprint unavailable';
+    }
+  }
 
-    // ── Smart https:// handling ──────────────────────────────────────────────
-    const urlInput = document.getElementById('url-input');
-    urlInput.value = 'https://';
-    
-    urlInput.addEventListener('focus', function() {
-      if (this.value === 'https://') {
-        setTimeout(() => {
-          this.setSelectionRange(this.value.length, this.value.length);
-        }, 0);
-      }
+  /**
+   * Call /api/shorten with fp headers to get back a server-derived hash.
+   * We cache the hash locally for future requests.
+   */
+  async function getOwnerHeaders() {
+    if (!currentFp) return {};
+    if (currentHash) {
+      return { 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash };
+    }
+    // Hash not yet derived — we'll send the fp and let the server return the hash
+    // embedded in the shorten response (ownerHash field). Cache it after.
+    return { 'X-Fingerprint': currentFp };
+  }
+
+  function cacheOwnerHash(hash) {
+    if (hash) {
+      currentHash = hash;
+      localStorage.setItem(HASH_KEY, hash);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TABS
+  // ═══════════════════════════════════════════════════════════════
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', ['shorten','preview','mylinks'][i] === name);
     });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'mylinks') loadMyLinks();
+  }
 
-    urlInput.addEventListener('input', function() {
-      let val = this.value;
-      
-      if (val.startsWith('https://https://')) {
-        this.value = val.replace('https://https://', 'https://');
-      } else if (val.startsWith('http://https://')) {
-        this.value = val.replace('http://https://', 'https://');
+  // ═══════════════════════════════════════════════════════════════
+  // SHORTEN
+  // ═══════════════════════════════════════════════════════════════
+
+  const urlInput  = document.getElementById('url-input');
+  urlInput.value  = 'https://';
+
+  urlInput.addEventListener('focus', function () {
+    if (this.value === 'https://') setTimeout(() => this.setSelectionRange(this.value.length, this.value.length), 0);
+  });
+
+  urlInput.addEventListener('input', function () {
+    let v = this.value;
+    if (v.startsWith('https://https://')) v = v.replace('https://https://', 'https://');
+    else if (v.startsWith('http://https://')) v = v.replace('http://https://', 'https://');
+    if (!v.startsWith('https://') && !v.startsWith('http://')) v = 'https://' + v;
+    this.value = v;
+  });
+
+  let currentShortUrl = '';
+
+  async function shortenUrl() {
+    const url    = urlInput.value.trim();
+    const slug   = document.getElementById('slug-input').value.trim();
+    const expiry = document.getElementById('expiry-select').value;
+    const preview = document.getElementById('preview-toggle').checked;
+    const linkOwner = document.getElementById('owner-toggle').checked;
+
+    const errorBox = document.getElementById('shorten-error');
+    const resultBox = document.getElementById('result-box');
+    const btn = document.getElementById('submit-btn');
+
+    if (url === 'https://' || url === 'http://') { showError(errorBox, 'Please enter a valid URL'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Shortening…';
+    errorBox.classList.remove('show');
+    resultBox.classList.remove('show');
+
+    try {
+      const body = { url, preview };
+      if (slug)   body.customSlug = slug;
+      if (expiry) body.expiryDays = parseInt(expiry, 10);
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (linkOwner) {
+        const oh = await getOwnerHeaders();
+        Object.assign(headers, oh);
       }
-      
-      if (!val.startsWith('https://') && !val.startsWith('http://')) {
-        this.value = 'https://' + val;
+
+      const res  = await fetch('/api/shorten', { method: 'POST', headers, body: JSON.stringify(body) });
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Surface Safe Browsing threat types if present
+        if (data.threats && data.threats.length > 0) {
+          throw new Error('⚠ Blocked: ' + data.error + ' (' + data.threats.map(t => t.replace(/_/g,' ').toLowerCase()).join(', ') + ')');
+        }
+        throw new Error(data.error || 'Failed to shorten URL');
       }
+
+      // Cache owner hash returned by server
+      if (linkOwner && data.ownerHash) cacheOwnerHash(data.ownerHash);
+      // Also try to get it from the record if PATCH-needed
+      // (The server returns ownerLinked: true — the actual hash is stored in record.ownerHash)
+
+      currentShortUrl = data.shortUrl;
+      document.getElementById('result-url').textContent = data.shortUrl;
+
+      // Meta pills
+      const metas = [];
+      if (data.previewMode) metas.push('<span>⚠ preview</span>');
+      if (data.expiresAt)   metas.push('<span>⏱ expires ' + new Date(data.expiresAt).toLocaleDateString() + '</span>');
+      if (data.ownerLinked) metas.push('<span>🔗 linked to you</span>');
+      document.getElementById('result-meta').innerHTML = metas.join('');
+
+      resultBox.classList.add('show');
+      urlInput.value = 'https://';
+      document.getElementById('slug-input').value = '';
+
+    } catch (err) {
+      showError(errorBox, err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Shorten URL';
+    }
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(currentShortUrl).then(() => {
+      const btn = event.target;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
     });
+  }
 
-    // ── Form submission ──────────────────────────────────────────────────────
-    document.getElementById('shorten-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const url = urlInput.value.trim();
-      const slug = document.getElementById('slug-input').value.trim();
-      const submitBtn = document.getElementById('submit-btn');
-      const errorDiv = document.getElementById('error');
-      const resultDiv = document.getElementById('result');
+  let qrVisible = false;
+  function toggleQR() {
+    qrVisible = !qrVisible;
+    const wrap = document.getElementById('qr-wrap');
+    wrap.style.display = qrVisible ? 'block' : 'none';
+    if (qrVisible) renderQR(currentShortUrl);
+  }
 
-      if (url === 'https://' || url === 'http://') {
-        showError('Please enter a valid URL');
+  function renderQR(url) {
+    const canvas = document.getElementById('qr-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 200; canvas.height = 200;
+    ctx.clearRect(0, 0, 200, 200);
+
+    const tmp = document.createElement('div');
+    tmp.style.display = 'none';
+    document.body.appendChild(tmp);
+
+    new QRCode(tmp, { text: url, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+
+    setTimeout(() => {
+      const img = tmp.querySelector('img');
+      const draw = () => { ctx.drawImage(img, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
+      if (img && img.complete) draw(); else if (img) img.onload = draw;
+    }, 80);
+  }
+
+  function addQRBadge(ctx) {
+    const s = 44, cx = 100, cy = 100;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(cx - s/2, cy - s/2, s, s);
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - s/2, cy - s/2, s, s);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(location.hostname.split('.')[0], cx, cy);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PREVIEW LOOKUP
+  // ═══════════════════════════════════════════════════════════════
+
+  async function previewLookup() {
+    const raw = document.getElementById('preview-input').value.trim();
+    const errorBox = document.getElementById('preview-error');
+    const resultBox = document.getElementById('preview-result');
+
+    errorBox.classList.remove('show');
+    resultBox.classList.remove('show');
+
+    if (!raw) { showError(errorBox, 'Enter a slug or short URL'); return; }
+
+    // Extract slug from full URL if needed
+    let slug = raw;
+    try {
+      const u = new URL(raw);
+      slug = u.pathname.replace(/^\//, '').split('/')[0];
+    } catch {}
+
+    if (!slug || !/^[a-z0-9\-_]+$/i.test(slug)) {
+      showError(errorBox, 'Invalid slug format'); return;
+    }
+
+    try {
+      const res  = await fetch('/api/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Slug not found');
+
+      document.getElementById('preview-dest').textContent = data.url;
+
+      const meta = [];
+      meta.push('<div class="row">Created: <b>' + new Date(data.createdAt).toLocaleString() + '</b></div>');
+      if (data.creatorCountry) meta.push('<div class="row">Creator country: <b>' + esc(data.creatorCountry) + '</b></div>');
+      if (data.previewMode)    meta.push('<div class="row">Mode: <b>⚠ preview interstitial enabled</b></div>');
+      if (data.expiresAt)      meta.push('<div class="row">Expires: <b>' + new Date(data.expiresAt).toLocaleDateString() + '</b></div>');
+      meta.push('<div class="row">Access count: <b>' + (data.accessCount || 0) + '</b></div>');
+
+      document.getElementById('preview-meta').innerHTML = meta.join('');
+      resultBox.classList.add('show');
+
+    } catch (err) {
+      showError(errorBox, err.message);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MY LINKS
+  // ═══════════════════════════════════════════════════════════════
+
+  async function loadMyLinks() {
+    const status = document.getElementById('mylinks-status');
+    const list   = document.getElementById('mylinks-list');
+    status.textContent = '';
+    list.innerHTML = '';
+
+    if (!currentFp) {
+      status.textContent = 'Fingerprint not ready. Please wait a moment and try again.';
+      return;
+    }
+
+    if (!currentHash) {
+      status.innerHTML = 'No links linked to this browser yet. Create a link with <b>"Link to my browser"</b> enabled to get started.';
+      return;
+    }
+
+    status.textContent = 'Loading your links…';
+
+    try {
+      const res = await fetch('/api/mylinks', {
+        headers: { 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        status.textContent = data.error || 'Could not load links.';
         return;
       }
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Shortening...';
-      errorDiv.classList.remove('show');
-      resultDiv.classList.remove('show');
+      status.textContent = '';
 
-      try {
-        const res = await fetch('/api/shorten', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, customSlug: slug || undefined })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to shorten URL');
-        }
-
-        currentShortUrl = data.shortUrl;
-        document.getElementById('short-url').textContent = data.shortUrl;
-        resultDiv.classList.add('show');
-
-        generateQR(data.shortUrl);
-        addToHistory(data.shortUrl, url);
-
-        urlInput.value = 'https://';
-        document.getElementById('slug-input').value = '';
-
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Shorten URL';
-      }
-    });
-
-    function showError(msg) {
-      const errorDiv = document.getElementById('error');
-      errorDiv.textContent = msg;
-      errorDiv.classList.add('show');
-    }
-
-    // ── QR Code Generation ───────────────────────────────────────────────────
-    function generateQR(url) {
-      const canvas = document.getElementById('qr-canvas');
-      const ctx = canvas.getContext('2d');
-      
-      // Clear canvas
-      canvas.width = 300;
-      canvas.height = 300;
-      ctx.clearRect(0, 0, 300, 300);
-
-      // Create temporary container for QRCode library
-      const tempDiv = document.createElement('div');
-      tempDiv.style.display = 'none';
-      document.body.appendChild(tempDiv);
-
-      // Generate QR code
-      new QRCode(tempDiv, {
-        text: url,
-        width: 300,
-        height: 300,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
-
-      // Wait for QR code to render, then copy to canvas
-      setTimeout(() => {
-        const qrImg = tempDiv.querySelector('img');
-        if (qrImg && qrImg.complete) {
-          ctx.drawImage(qrImg, 0, 0);
-          addCenterLogo(ctx, 300, 300);
-          tempDiv.remove();
-        } else if (qrImg) {
-          qrImg.onload = () => {
-            ctx.drawImage(qrImg, 0, 0);
-            addCenterLogo(ctx, 300, 300);
-            tempDiv.remove();
-          };
-        }
-      }, 100);
-    }
-
-    function addCenterLogo(ctx, width, height) {
-      const boxSize = 60;
-      const cx = width / 2;
-      const cy = height / 2;
-
-      // White box
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
-
-      // Border
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(cx - boxSize/2, cy - boxSize/2, boxSize, boxSize);
-
-      // Label
-      const hostname = window.location.hostname;
-      const label = hostname.split('.')[0];
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 16px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, cx, cy);
-    }
-
-    function copyShortUrl() {
-      navigator.clipboard.writeText(currentShortUrl).then(() => {
-        alert('Link copied to clipboard!');
-      });
-    }
-
-    function downloadQR() {
-      const canvas = document.getElementById('qr-canvas');
-      const link = document.createElement('a');
-      link.download = 'qr-code.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    }
-
-    function addToHistory(shortUrl, longUrl) {
-      history.unshift({ shortUrl, longUrl, date: Date.now() });
-      history = history.slice(0, 10);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-      renderHistory();
-    }
-
-    function renderHistory() {
-      if (history.length === 0) {
-        document.getElementById('history-section').style.display = 'none';
+      if (!data.links || data.links.length === 0) {
+        list.innerHTML = '<div class="mylinks-empty">No links linked to this browser yet.<br/>Create one with "Link to my browser" enabled.</div>';
         return;
       }
 
-      document.getElementById('history-section').style.display = 'block';
-      const list = document.getElementById('history-list');
-      list.innerHTML = history.map(item => `
-        <div class="history-item">
-          <div>
-            <a href="${item.shortUrl}" class="history-url" target="_blank">${item.shortUrl}</a>
-            <div class="history-dest">${item.longUrl}</div>
-          </div>
+      list.innerHTML = data.links.map(link => buildLinkCard(link)).join('');
+
+    } catch {
+      status.textContent = 'Failed to load links.';
+    }
+  }
+
+  function buildLinkCard(link) {
+    const pills = [];
+    if (link.previewMode) pills.push('<span class="pill preview">preview</span>');
+    if (link.expiresAt)   pills.push('<span class="pill expiry">expires ' + new Date(link.expiresAt).toLocaleDateString() + '</span>');
+    pills.push('<span class="pill hits">' + (link.accessCount || 0) + ' hits</span>');
+
+    return `
+      <div class="link-card" id="card-${esc(link.slug)}">
+        <div class="link-card-slug"><a href="${esc(link.shortUrl)}" target="_blank">/${esc(link.slug)}</a></div>
+        <div class="link-card-dest" title="${esc(link.url)}">${esc(link.url)}</div>
+        <div class="link-card-meta">${pills.join('')}<span class="pill">${new Date(link.createdAt).toLocaleDateString()}</span></div>
+        <div class="link-card-actions">
+          <button class="btn-xs" onclick="showAccessLog(${JSON.stringify(link)})">Access Log</button>
+          <button class="btn-xs" onclick="togglePreview(${JSON.stringify(link.slug)}, ${!link.previewMode})">${link.previewMode ? 'Disable' : 'Enable'} Preview</button>
+          <button class="btn-xs danger" onclick="deleteMyLink(${JSON.stringify(link.slug)})">Delete</button>
         </div>
-      `).join('');
+      </div>`;
+  }
+
+  async function togglePreview(slug, newState) {
+    if (!currentFp || !currentHash) return;
+    try {
+      const res = await fetch('/api/mylinks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash },
+        body: JSON.stringify({ slug, previewMode: newState }),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
+      loadMyLinks();
+    } catch { alert('Request failed'); }
+  }
+
+  async function deleteMyLink(slug) {
+    if (!confirm('Delete /' + slug + '? This cannot be undone.')) return;
+    if (!currentFp || !currentHash) return;
+    try {
+      const res = await fetch('/api/mylinks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash },
+        body: JSON.stringify({ slug }),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
+      document.getElementById('card-' + slug)?.remove();
+    } catch { alert('Request failed'); }
+  }
+
+  function showAccessLog(link) {
+    const modal = document.getElementById('log-modal');
+    document.getElementById('log-modal-title').textContent = 'Access Log — /' + link.slug;
+
+    const log = link.accessLog || [];
+    if (log.length === 0) {
+      document.getElementById('log-modal-body').innerHTML = '<div style="color:var(--muted);font-size:0.875rem;">No accesses recorded yet.</div>';
+    } else {
+      document.getElementById('log-modal-body').innerHTML = log.slice().reverse().map((e, i) => `
+        <div class="log-entry">
+          <div class="le-row"><b>${new Date(e.ts).toLocaleString()}</b></div>
+          <div class="le-row">IP: <b>${esc(e.ip)}</b></div>
+          <div class="le-row">Country: <b>${esc(e.country)}${e.city ? ', ' + esc(e.city) : ''}</b></div>
+          <div class="le-row">UA: <b>${esc((e.ua || '').slice(0, 80))}${(e.ua||'').length > 80 ? '…' : ''}</b></div>
+        </div>`).join('');
     }
 
-    function clearHistory() {
-      if (confirm('Clear all history?')) {
-        history = [];
-        localStorage.removeItem(STORAGE_KEY);
-        renderHistory();
-      }
-    }
+    modal.classList.add('show');
+  }
 
-    renderHistory();
+  function closeLogModal() {
+    document.getElementById('log-modal').classList.remove('show');
+  }
+
+  // Close modal on backdrop click
+  document.getElementById('log-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeLogModal();
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // UTILS
+  // ═══════════════════════════════════════════════════════════════
+
+  function showError(el, msg) {
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // INIT
+  // ═══════════════════════════════════════════════════════════════
+
+  (function init() {
+    const host = location.hostname;
+    document.getElementById('logo-text').textContent = host;
+    document.getElementById('tagline').textContent = 'Shorten. Share. Disappear.';
+    document.getElementById('footer-domain').textContent = host;
+    document.getElementById('canonical-url').href = location.origin;
+    document.title = host + ' — URL Shortener';
+  })();
+
+  initFingerprint();
   </script>
 </body>
 </html>

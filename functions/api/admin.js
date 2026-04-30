@@ -3,7 +3,9 @@ import {
   jsonResponse,
   secureHeaders,
   CORS_ADMIN,
+  CORS_PUBLIC,
   checkAdminAuth,
+  getVerifiedOwnerHash,
   validateLookupSlug,
   readJsonBody,
 } from '../_security.js';
@@ -31,7 +33,7 @@ async function getAllLinks(kv) {
   return links;
 }
 
-// GET /api/admin — list all links
+// ─── GET /api/admin — list all links (admin only) ─────────────────────────────
 export async function onRequestGet(context) {
   const { request, env } = context;
   if (!checkAdminAuth(request, env)) return unauthorized(request);
@@ -48,7 +50,10 @@ export async function onRequestGet(context) {
   }
 }
 
-// DELETE /api/admin — delete one slug or purge all
+// ─── POST /api/admin/mylinks — list the caller's own links (owner-hash auth) ──
+// This is handled in a separate file: /api/mylinks.js
+
+// ─── DELETE /api/admin — delete one slug or purge all (admin) ────────────────
 export async function onRequestDelete(context) {
   const { request, env } = context;
   if (!checkAdminAuth(request, env)) return unauthorized(request);
@@ -60,7 +65,6 @@ export async function onRequestDelete(context) {
 
   const { slug, purgeAll } = bodyResult.body;
 
-  // ── Purge all ─────────────────────────────────────────────────────────────
   if (purgeAll === true) {
     try {
       let cursor, deleted = 0;
@@ -71,20 +75,17 @@ export async function onRequestDelete(context) {
         cursor = result.cursor;
         if (result.list_complete) break;
       } while (cursor);
-
       return jsonResponse({ success: true, deleted, truth: getRandomConspiracy() }, 200, CORS_ADMIN);
     } catch {
       return jsonResponse({ error: 'Purge failed.' }, 500, CORS_ADMIN);
     }
   }
 
-  // ── Delete one ────────────────────────────────────────────────────────────
   if (slug !== undefined) {
     const sv = validateLookupSlug(slug);
     if (!sv.ok) {
       return jsonResponse({ error: sv.error, truth: getRandomConspiracy() }, 422, CORS_ADMIN);
     }
-
     try {
       await env.LINKS.delete(sv.slug);
       return jsonResponse({ success: true, slug: sv.slug, truth: getRandomConspiracy() }, 200, CORS_ADMIN);
