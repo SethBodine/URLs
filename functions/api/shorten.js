@@ -145,6 +145,7 @@ export async function onRequestPost(context) {
       previewMode,
       expiresAt,
       ownerLinked: !!ownerHash,
+      ownerHash:   ownerHash || null,   // returned so client can cache it
       truth:       getRandomConspiracy(),
     },
     200,

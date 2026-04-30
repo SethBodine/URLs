@@ -957,9 +957,27 @@
       return;
     }
 
+    // If we don't have the cached hash, try to recover it from the server
+    // using just the fingerprint. The server derives it with the HMAC secret.
     if (!currentHash) {
-      status.innerHTML = 'No links linked to this browser yet. Create a link with <b>"Link to my browser"</b> enabled to get started.';
-      return;
+      try {
+        status.textContent = 'Verifying fingerprint…';
+        const recoverRes = await fetch('/api/mylinks', {
+          method: 'POST',
+          headers: { 'X-Fingerprint': currentFp },
+        });
+        if (recoverRes.ok) {
+          const recoverData = await recoverRes.json();
+          if (recoverData.ownerHash) {
+            cacheOwnerHash(recoverData.ownerHash);
+          }
+        }
+      } catch { /* non-fatal — fall through */ }
+
+      if (!currentHash) {
+        status.innerHTML = 'No links linked to this browser yet. Create a link with <b>"Link to my browser"</b> enabled to get started.';
+        return;
+      }
     }
 
     status.textContent = 'Loading your links…';

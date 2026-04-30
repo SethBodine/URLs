@@ -28,6 +28,20 @@
       --radius:  10px;
       --mono:    'JetBrains Mono', monospace;
       --sans:    'DM Sans', sans-serif;
+
+    /* light mode overrides */
+    }
+    [data-theme="light"] {
+      --bg:      #f4f4f8;
+      --surface: #ffffff;
+      --raised:  #ebebf2;
+      --border:  #d8d8e8;
+      --border2: #c8c8dc;
+      --text:    #1a1a2e;
+      --muted:   #6b6b8a;
+      --dim:     #b0b0c8;
+      --accent:  #6a3fdb;
+      --accent2: #7c5cfc;
     }
 
     html { font-size: 16px; }
@@ -261,6 +275,79 @@
     }
     .delete-btn:hover { background: rgba(239,68,68,0.25); }
 
+    /* ── Theme toggle ── */
+    .theme-toggle {
+      background: var(--raised);
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      width: auto;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8125rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .theme-toggle:hover { background: var(--border); color: var(--text); }
+
+    /* ── Meta row (below each data row) ── */
+    .meta-row td {
+      background: var(--raised);
+      padding: 0.6rem 1rem 0.9rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .meta-row:hover td { background: var(--raised); }
+
+    .meta-section {
+      margin-bottom: 0.5rem;
+    }
+    .meta-label {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+    .ip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .ip-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+    .ip-chip .ts {
+      color: var(--muted);
+      font-size: 0.65rem;
+    }
+    .ip-chip.creator {
+      border-color: var(--accent);
+      color: var(--accent2);
+    }
+    .sb-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      font-weight: 500;
+    }
+    .sb-safe    { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: var(--green); }
+    .sb-threat  { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: var(--red);   }
+    .sb-skipped { background: var(--raised);          border: 1px solid var(--border2);        color: var(--muted); }
+    .sb-threats-list { font-size: 0.7rem; color: var(--red); margin-top: 0.2rem; font-family: var(--mono); }
+
     .empty-state {
       text-align: center;
       padding: 3rem 1rem;
@@ -319,7 +406,10 @@
   <div id="admin-panel" class="panel container">
     <header>
       <div class="header-title" id="admin-title">admin panel</div>
-      <button class="btn-ghost" onclick="logout()">Logout</button>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">☀ Light</button>
+        <button class="btn-ghost" onclick="logout()">Logout</button>
+      </div>
     </header>
 
     <div class="stats">
@@ -342,7 +432,7 @@
     </div>
 
     <div class="controls">
-      <input type="text" class="search-input" id="search-input" placeholder="Search slug, url, country…" />
+      <input type="text" class="search-input" id="search-input" placeholder="Search slug, url, IP, country…" />
       <button class="btn-ghost btn-danger" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;" onclick="confirmPurge()">Purge All</button>
     </div>
 
@@ -355,12 +445,13 @@
             <th>Created</th>
             <th>Hits</th>
             <th>Country</th>
+            <th>Creator IP</th>
             <th>Flags</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody id="links-table">
-          <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+          <tr><td colspan="8" class="empty-state">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -385,6 +476,21 @@
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
+
+    // ── Theme ──────────────────────────────────────────────────────────────
+    const THEME_KEY = 'admin_theme_' + location.hostname;
+    function applyTheme(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      const btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = t === 'light' ? '🌙 Dark' : '☀ Light';
+      localStorage.setItem(THEME_KEY, t);
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      applyTheme(current === 'light' ? 'dark' : 'light');
+    }
+    // Restore saved theme
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 
     (function() {
       document.title = location.hostname + ' — admin';
@@ -427,39 +533,88 @@
 
     document.getElementById('search-input').addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase();
-      renderLinks(allLinks.filter(l =>
-        l.slug.toLowerCase().includes(q) ||
-        l.url.toLowerCase().includes(q)  ||
-        (l.creatorCountry || l.country || '').toLowerCase().includes(q) ||
-        (l.creatorIp || l.ip || '').toLowerCase().includes(q)
-      ));
+      renderLinks(allLinks.filter(l => {
+        if (l.slug.toLowerCase().includes(q)) return true;
+        if (l.url.toLowerCase().includes(q)) return true;
+        if ((l.creatorCountry || l.country || '').toLowerCase().includes(q)) return true;
+        if ((l.creatorIp || l.ip || '').toLowerCase().includes(q)) return true;
+        // search access log IPs too
+        if (Array.isArray(l.accessLog) && l.accessLog.some(e => (e.ip || '').toLowerCase().includes(q))) return true;
+        return false;
+      }));
     });
 
     function renderLinks(links) {
       const tbody = document.getElementById('links-table');
-      if (!links.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No links found</td></tr>'; return; }
+      if (!links.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No links found</td></tr>'; return; }
 
       tbody.innerHTML = links.map(link => {
-        const shortUrl = location.origin + '/' + esc(link.slug);
-        const created  = new Date(link.createdAt).toLocaleDateString();
-        const country  = esc(link.creatorCountry || link.country || '—');
-        const hits     = link.accessCount || 0;
-        const expires  = link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : null;
+        const shortUrl   = location.origin + '/' + esc(link.slug);
+        const created    = new Date(link.createdAt).toLocaleDateString();
+        const country    = esc(link.creatorCountry || link.country || '—');
+        const hits       = link.accessCount || 0;
+        const expires    = link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : null;
+        const creatorIp  = esc(link.creatorIp || link.ip || '—');
 
         const flags = [];
         if (link.previewMode) flags.push('<span class="pill preview">preview</span>');
         if (link.ownerHash)   flags.push('<span class="pill owned">owned</span>');
         if (expires)          flags.push('<span class="pill expiry">exp ' + esc(expires) + '</span>');
 
-        return `<tr>
+        // ── Access log IP chips ────────────────────────────────────────────
+        const accessLog = Array.isArray(link.accessLog) ? link.accessLog : [];
+        const ipChips = accessLog.map(entry => {
+          const ts = entry.ts ? new Date(entry.ts).toLocaleString() : '';
+          const loc = [entry.city, entry.country].filter(Boolean).join(', ');
+          return `<span class="ip-chip" title="${esc(ts)}${loc ? ' · ' + esc(loc) : ''}">
+            ${esc(entry.ip || '?')}${ts ? `<span class="ts">${esc(new Date(entry.ts).toLocaleDateString())}</span>` : ''}
+          </span>`;
+        }).join('');
+
+        // ── Safe Browsing badge ────────────────────────────────────────────
+        let sbHtml = '';
+        const sb = link.safeBrowsing;
+        if (sb) {
+          if (!sb.checked) {
+            sbHtml = `<span class="sb-badge sb-skipped">⚪ Not checked</span>
+                      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.2rem;">SAFE_BROWSING_API_KEY not configured</div>`;
+          } else if (sb.threats && sb.threats.length) {
+            sbHtml = `<span class="sb-badge sb-threat">⛔ Threats detected</span>
+                      <div class="sb-threats-list">${sb.threats.map(t => esc(t.replace(/_/g,' '))).join(', ')}</div>`;
+          } else {
+            const checkedAt = sb.checkedAt ? new Date(sb.checkedAt).toLocaleString() : '';
+            sbHtml = `<span class="sb-badge sb-safe">✓ Clean</span>${checkedAt ? `<span style="font-size:0.65rem;color:var(--muted);margin-left:0.5rem;">${esc(checkedAt)}</span>` : ''}`;
+          }
+        } else {
+          sbHtml = `<span class="sb-badge sb-skipped">— No data</span>`;
+        }
+
+        const mainRow = `<tr>
           <td><a href="${shortUrl}" class="slug-link" target="_blank">${esc(link.slug)}</a></td>
           <td><div class="dest-cell" title="${esc(link.url)}">${esc(link.url)}</div></td>
           <td>${esc(created)}</td>
           <td>${esc(hits)}</td>
           <td>${country}</td>
+          <td><span class="ip-chip creator" title="Creator IP">${creatorIp}</span></td>
           <td>${flags.join('') || '—'}</td>
           <td><button class="delete-btn" onclick="confirmDelete(${JSON.stringify(link.slug)})">Delete</button></td>
         </tr>`;
+
+        const metaRow = `<tr class="meta-row">
+          <td colspan="8">
+            ${accessLog.length > 0 ? `
+            <div class="meta-section">
+              <div class="meta-label">View IPs (${accessLog.length})</div>
+              <div class="ip-list">${ipChips}</div>
+            </div>` : ''}
+            <div class="meta-section">
+              <div class="meta-label">Google Safe Browsing</div>
+              ${sbHtml}
+            </div>
+          </td>
+        </tr>`;
+
+        return mainRow + metaRow;
       }).join('');
     }
 

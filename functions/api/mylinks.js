@@ -15,6 +15,7 @@ import {
   secureHeaders,
   CORS_PUBLIC,
   getVerifiedOwnerHash,
+  deriveOwnerHash,
   validateLookupSlug,
   readJsonBody,
 } from '../_security.js';
@@ -159,6 +160,29 @@ export async function onRequestPatch(context) {
 
   await env.LINKS.put(sv.slug, JSON.stringify(record), kvOptions);
   return jsonResponse({ success: true, slug: sv.slug, previewMode: record.previewMode, truth: getRandomConspiracy() }, 200, OWNER_CORS);
+}
+
+// ─── POST /api/mylinks — derive owner hash from fingerprint (hash recovery) ───
+// Allows a browser that has lost its cached hash (e.g. localStorage cleared,
+// or OWNER_HASH_SECRET rotated) to re-derive it from its raw fingerprint.
+// Only the fingerprint is sent; the server derives and returns the hash.
+// This is safe because the secret stays server-side — the fingerprint alone
+// cannot be used to forge requests (the server still HMAC-verifies on all
+// mutating operations).
+export async function onRequestPost(context) {
+  const { request, env } = context;
+
+  const rawFp = (request.headers.get('X-Fingerprint') || '').trim();
+  if (!rawFp) {
+    return jsonResponse({ error: 'X-Fingerprint header is required.' }, 400, OWNER_CORS);
+  }
+
+  const hash = await deriveOwnerHash(rawFp, env);
+  if (!hash) {
+    return jsonResponse({ error: 'Owner hash derivation failed. OWNER_HASH_SECRET may not be configured.' }, 500, OWNER_CORS);
+  }
+
+  return jsonResponse({ ownerHash: hash }, 200, OWNER_CORS);
 }
 
 export async function onRequestOptions() {
