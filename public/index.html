@@ -36,6 +36,38 @@
       --sans:     'DM Sans', sans-serif;
     }
 
+    [data-theme="light"] {
+      --bg:       #f4f4f8;
+      --surface:  #ffffff;
+      --raised:   #ebebf2;
+      --border:   #d8d8e8;
+      --border2:  #c8c8dc;
+      --text:     #1a1a2e;
+      --muted:    #6b6b8a;
+      --dim:      #b0b0c8;
+      --accent:   #6a3fdb;
+      --accent2:  #7c5cfc;
+    }
+
+    .theme-toggle-btn {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      transition: background 0.2s, color 0.2s;
+    }
+    .theme-toggle-btn:hover { color: var(--text); background: var(--raised); }
+
+
     html { font-size: 16px; scroll-behavior: smooth; }
 
     body {
@@ -1007,11 +1039,19 @@
     }
   }
 
+  // Map of slug → link data, used by onclick handlers to avoid inline JSON serialisation
+  const _linkDataMap = {};
+
   function buildLinkCard(link) {
+    _linkDataMap[link.slug] = link;
+
     const pills = [];
     if (link.previewMode) pills.push('<span class="pill preview">preview</span>');
     if (link.expiresAt)   pills.push('<span class="pill expiry">expires ' + new Date(link.expiresAt).toLocaleDateString() + '</span>');
     pills.push('<span class="pill hits">' + (link.accessCount || 0) + ' hits</span>');
+
+    const safeSlug = btoa(unescape(encodeURIComponent(link.slug)));
+    const previewLabel = link.previewMode ? 'Disable Preview' : 'Enable Preview';
 
     return `
       <div class="link-card" id="card-${esc(link.slug)}">
@@ -1019,11 +1059,20 @@
         <div class="link-card-dest" title="${esc(link.url)}">${esc(link.url)}</div>
         <div class="link-card-meta">${pills.join('')}<span class="pill">${new Date(link.createdAt).toLocaleDateString()}</span></div>
         <div class="link-card-actions">
-          <button class="btn-xs" onclick="showAccessLog(${JSON.stringify(link)})">Access Log</button>
-          <button class="btn-xs" onclick="togglePreview(${JSON.stringify(link.slug)}, ${!link.previewMode})">${link.previewMode ? 'Disable' : 'Enable'} Preview</button>
-          <button class="btn-xs danger" onclick="deleteMyLink(${JSON.stringify(link.slug)})">Delete</button>
+          <button class="btn-xs" onclick="_cardAction('log','${safeSlug}')">Access Log</button>
+          <button class="btn-xs" onclick="_cardAction('preview','${safeSlug}')">${previewLabel}</button>
+          <button class="btn-xs danger" onclick="_cardAction('delete','${safeSlug}')">Delete</button>
         </div>
       </div>`;
+  }
+
+  function _cardAction(action, safeSlug) {
+    const slug = decodeURIComponent(escape(atob(safeSlug)));
+    const link = _linkDataMap[slug];
+    if (!link) return;
+    if (action === 'log')     showAccessLog(link);
+    if (action === 'preview') togglePreview(slug, !link.previewMode);
+    if (action === 'delete')  deleteMyLink(slug);
   }
 
   async function togglePreview(slug, newState) {
@@ -1111,6 +1160,26 @@
   })();
 
   initFingerprint();
-  </script>
+  
+  // ═══════════════════════════════════════════════════════════════
+  // THEME
+  // ═══════════════════════════════════════════════════════════════
+  const THEME_KEY = 'b0x_theme_' + location.hostname;
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = t === 'light' ? '🌙 Dark' : '☀ Light';
+    localStorage.setItem(THEME_KEY, t);
+  }
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(current === 'light' ? 'dark' : 'light');
+  }
+  applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+</script>
+
+  <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()">☀ Light</button>
+
 </body>
 </html>
