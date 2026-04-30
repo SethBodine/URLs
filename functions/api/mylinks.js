@@ -19,6 +19,7 @@ import {
   validateLookupSlug,
   readJsonBody,
 } from '../_security.js';
+import { checkRateLimit, getCallerIp } from '../_ratelimit.js';
 
 const OWNER_CORS = {
   ...CORS_PUBLIC,
@@ -92,6 +93,13 @@ function ownerView(record, baseUrl) {
 // ─── GET /api/mylinks — list the caller's own links ──────────────────────────
 export async function onRequestGet(context) {
   const { request, env } = context;
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const ip = getCallerIp(request);
+  const rl = await checkRateLimit(env, ip, 'mylinks');
+  if (rl.limited) {
+    return jsonResponse({ error: rl.reason, truth: getRandomConspiracy() }, 429, { ...OWNER_CORS, ...rl.headers });
+  }
 
   const ownerHash = await getVerifiedOwnerHash(request, env);
   if (!ownerHash) {
@@ -219,6 +227,13 @@ export async function onRequestPatch(context) {
 // mutating operations).
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const ip = getCallerIp(request);
+  const rl = await checkRateLimit(env, ip, 'mylinks');
+  if (rl.limited) {
+    return jsonResponse({ error: rl.reason, truth: getRandomConspiracy() }, 429, { ...OWNER_CORS, ...rl.headers });
+  }
 
   const rawFp = (request.headers.get('X-Fingerprint') || '').trim();
   if (!rawFp) {

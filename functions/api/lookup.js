@@ -10,6 +10,8 @@ import {
   readJsonBody,
 } from '../_security.js';
 
+import { checkRateLimit, getCallerIp } from '../_ratelimit.js';
+
 const BATCH_LIMIT = 50;
 
 function formatRecord(record, baseUrl, includePrivate) {
@@ -36,6 +38,13 @@ function formatRecord(record, baseUrl, includePrivate) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const ip = getCallerIp(request);
+  const rl = await checkRateLimit(env, ip, 'lookup');
+  if (rl.limited) {
+    return jsonResponse({ error: rl.reason, truth: getRandomConspiracy() }, 429, { ...CORS_PUBLIC, ...rl.headers });
+  }
 
   const bodyResult = await readJsonBody(request);
   if (!bodyResult.ok) {

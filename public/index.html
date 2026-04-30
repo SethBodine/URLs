@@ -680,6 +680,84 @@
       padding: 0.2rem 0.7rem;
       color: var(--accent2);
       margin-top: 0.75rem;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .fingerprint-badge:hover {
+      background: rgba(124,92,252,0.18);
+      border-color: rgba(124,92,252,0.4);
+    }
+
+    .fp-expand {
+      display: none;
+      margin-top: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      text-align: left;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .fp-expand.open { display: block; }
+
+    .fp-field {
+      margin-bottom: 0.75rem;
+    }
+    .fp-field:last-child { margin-bottom: 0; }
+
+    .fp-field-label {
+      font-size: 0.65rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.3rem;
+    }
+
+    .fp-field-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .fp-field-value {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text);
+      background: var(--raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+    .fp-field-value.unavailable { color: var(--muted); font-style: italic; }
+
+    .fp-copy-btn {
+      flex-shrink: 0;
+      width: auto;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      background: var(--raised);
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .fp-copy-btn:hover:not(:disabled) { background: var(--border2); color: var(--text); }
+    .fp-copy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .fp-note {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.6rem;
+      line-height: 1.5;
     }
 
     .fp-dot {
@@ -830,6 +908,7 @@
         <span><span class="api-auth-badge public">public</span> No auth required</span>
         <span><span class="api-auth-badge owner">owner</span> Requires X-Owner-Hash + X-Fingerprint headers</span>
         <span><span class="api-auth-badge admin">admin</span> Requires Authorization: Bearer &lt;ADMIN_KEY&gt;</span>
+        <span style="color:var(--muted);font-size:0.72rem;">⏱ Public + owner endpoints: 25 req/hour · 100 req/day per IP &nbsp;·&nbsp; Admin endpoints: unlimited</span>
       </div>
 
       <!-- POST /api/shorten -->
@@ -1012,9 +1091,27 @@
   <footer>
     <span id="footer-domain"></span> &nbsp;·&nbsp; <a href="./admin.html">Admin</a>
     <br/>
-    <div class="fingerprint-badge">
+    <div class="fingerprint-badge" onclick="toggleFpExpand()" title="Click to view API credentials">
       <span class="fp-dot"></span>
       <span id="fp-display">generating fingerprint…</span>
+      <span style="font-size:0.6rem;opacity:0.6;">▾</span>
+    </div>
+    <div class="fp-expand" id="fp-expand">
+      <div class="fp-field">
+        <div class="fp-field-label">X-Fingerprint — Raw fingerprint (client-only)</div>
+        <div class="fp-field-row">
+          <div class="fp-field-value" id="fp-raw-display">generating…</div>
+          <button class="fp-copy-btn" id="fp-raw-copy" onclick="copyFpField('fp-raw-display', this)" disabled>Copy</button>
+        </div>
+      </div>
+      <div class="fp-field">
+        <div class="fp-field-label">X-Owner-Hash — Server-derived HMAC</div>
+        <div class="fp-field-row">
+          <div class="fp-field-value unavailable" id="fp-hash-display">not yet derived — create a link with "Link to my browser" first</div>
+          <button class="fp-copy-btn" id="fp-hash-copy" onclick="copyFpField('fp-hash-display', this)" disabled>Copy</button>
+        </div>
+      </div>
+      <div class="fp-note">Use these headers to authenticate API calls as yourself. The hash is derived server-side from your fingerprint — keep both values private.</div>
     </div>
   </footer>
 
@@ -1085,12 +1182,22 @@
       const cached = localStorage.getItem(HASH_KEY);
       if (cached) {
         currentHash = cached;
+        // Populate hash in expand panel from cache
+        const hashEl = document.getElementById('fp-hash-display');
+        const hashCopy = document.getElementById('fp-hash-copy');
+        if (hashEl) { hashEl.textContent = cached; hashEl.classList.remove('unavailable'); }
+        if (hashCopy) hashCopy.disabled = false;
       } else {
         // Derive the hash server-side on first visit by shortening a dummy request
         // We'll derive it lazily on first shorten action instead
       }
 
       document.getElementById('fp-display').textContent = 'fp: ' + preview;
+      // Populate expand panel
+      const rawEl = document.getElementById('fp-raw-display');
+      const rawCopy = document.getElementById('fp-raw-copy');
+      if (rawEl) { rawEl.textContent = raw; rawEl.classList.remove('unavailable'); }
+      if (rawCopy) rawCopy.disabled = false;
     } catch {
       document.getElementById('fp-display').textContent = 'fingerprint unavailable';
     }
@@ -1114,6 +1221,11 @@
     if (hash) {
       currentHash = hash;
       localStorage.setItem(HASH_KEY, hash);
+      // Update expand panel
+      const hashEl = document.getElementById('fp-hash-display');
+      const hashCopy = document.getElementById('fp-hash-copy');
+      if (hashEl) { hashEl.textContent = hash; hashEl.classList.remove('unavailable'); }
+      if (hashCopy) hashCopy.disabled = false;
     }
   }
 
@@ -1533,6 +1645,30 @@
   }
 
   function copyCurl(id, btn) {
+    const text = document.getElementById(id)?.textContent || '';
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }).catch(() => {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════
+  // FINGERPRINT EXPAND PANEL
+  // ═══════════════════════════════════════════════════════════════
+  function toggleFpExpand() {
+    const panel = document.getElementById('fp-expand');
+    const badge = document.querySelector('.fingerprint-badge');
+    const chevron = badge.querySelector('span:last-child');
+    const open = panel.classList.toggle('open');
+    chevron.textContent = open ? '▴' : '▾';
+  }
+
+  function copyFpField(id, btn) {
     const text = document.getElementById(id)?.textContent || '';
     navigator.clipboard.writeText(text).then(() => {
       const orig = btn.textContent;

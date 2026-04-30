@@ -11,6 +11,15 @@ id = "ac7a277e3c554a4cb072071e976b28c6"
 preview_id = "ac7a277e3c554a4cb072071e976b28c6"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RATE LIMITING
+# ─────────────────────────────────────────────────────────────────────────────
+[vars]
+RATE_LIMIT_HOURLY = "25"   # max requests per IP per hour  (shorten / lookup / mylinks)
+RATE_LIMIT_DAILY  = "100"  # max requests per IP per day   (shorten / lookup / mylinks)
+# Admin endpoints are never rate-limited.
+# Override per-environment in [env.production.vars] if needed.
+
+# ─────────────────────────────────────────────────────────────────────────────
 # REQUIRED SECRETS (set via: wrangler secret put <NAME>)
 # ─────────────────────────────────────────────────────────────────────────────
 #

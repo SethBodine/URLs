@@ -10,6 +10,7 @@ import {
   readJsonBody,
 } from '../_security.js';
 import { checkSafeBrowsing } from '../_safebrowsing.js';
+import { checkRateLimit, getCallerIp } from '../_ratelimit.js';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const SHORT_LENGTH = 4;
@@ -32,6 +33,13 @@ async function generateUniqueSlug(kv) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const ip = getCallerIp(request);
+  const rl = await checkRateLimit(env, ip, 'shorten');
+  if (rl.limited) {
+    return jsonResponse({ error: rl.reason, truth: getRandomConspiracy() }, 429, { ...CORS_PUBLIC, ...rl.headers });
+  }
 
   const bodyResult = await readJsonBody(request);
   if (!bodyResult.ok) {
@@ -149,7 +157,7 @@ export async function onRequestPost(context) {
       truth:       getRandomConspiracy(),
     },
     200,
-    { ...CORS_PUBLIC, 'X-Status': 'RECORD CREATED — IT KNOWS WHERE YOU GO' }
+    { ...CORS_PUBLIC, ...rl.headers, 'X-Status': 'RECORD CREATED — IT KNOWS WHERE YOU GO' }
   );
 }
 
