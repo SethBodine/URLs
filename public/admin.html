@@ -645,7 +645,7 @@
           <td>${country}</td>
           <td><span class="ip-chip creator" title="Creator IP">${creatorIp}</span></td>
           <td>${flags.join('') || '—'}</td>
-          <td><button class="delete-btn" onclick="confirmDelete(${JSON.stringify(link.slug)})">Delete</button></td>
+          <td><button class="delete-btn" data-slug="${btoa(unescape(encodeURIComponent(link.slug)))}" onclick="confirmDelete(this)">Delete</button></td>
         </tr>`;
 
         const metaRow = `<tr class="meta-row">
@@ -680,7 +680,8 @@
       document.getElementById('owned-count').textContent = owned;
     }
 
-    function confirmDelete(slug) {
+    function confirmDelete(btn) {
+      const slug = decodeURIComponent(escape(atob(btn.dataset.slug)));
       showModal('Delete Link', 'Permanently delete /' + slug + '?', () => deleteLink(slug));
     }
 
