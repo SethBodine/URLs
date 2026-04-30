@@ -161,7 +161,7 @@ export function validateUrl(raw) {
   if (!str.length) return { ok: false, error: 'URL must not be empty.' };
   if (str.length > 2048) return { ok: false, error: 'URL must be 2048 characters or fewer.' };
 
-  const schemeMatch = str.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):\\/\\//i);
+  const schemeMatch = str.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\//i);
   if (!schemeMatch) return { ok: false, error: 'URL must include a scheme (https:// or http://).' };
 
   const scheme = schemeMatch[1].toLowerCase();
