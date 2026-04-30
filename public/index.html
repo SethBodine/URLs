@@ -503,6 +503,153 @@
     }
     .modal-close:hover { color: var(--text); }
 
+
+    /* API Docs */
+    .api-docs {
+      max-width: 680px;
+      margin: 3rem auto 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .api-docs-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1.25rem;
+      font-size: 0.875rem;
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      text-align: left;
+    }
+    .api-docs-toggle:hover { border-color: var(--border2); color: var(--text); }
+    .api-docs-toggle.open  { border-color: var(--accent); color: var(--text); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+    .api-docs-toggle .chevron {
+      font-style: normal;
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .api-docs-toggle.open .chevron { transform: rotate(180deg); }
+
+    .api-docs-body {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-top: none;
+      border-bottom-left-radius: var(--radius);
+      border-bottom-right-radius: var(--radius);
+      padding: 1.5rem 1.25rem;
+    }
+    .api-docs-body.open { display: block; }
+
+    .api-endpoint {
+      margin-bottom: 2rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .api-endpoint:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+    .api-endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .api-method {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+    .api-method.get    { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+    .api-method.post   { background: rgba(124,92,252,0.15); color: var(--accent2); border: 1px solid rgba(124,92,252,0.3); }
+    .api-method.patch  { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+    .api-method.delete { background: rgba(239,68,68,0.15);  color: var(--red);   border: 1px solid rgba(239,68,68,0.3); }
+
+    .api-path {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .api-auth-badge {
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      margin-left: auto;
+    }
+    .api-auth-badge.admin  { background: rgba(239,68,68,0.12); color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+    .api-auth-badge.owner  { background: rgba(124,92,252,0.12); color: var(--accent2); border: 1px solid rgba(124,92,252,0.3); }
+    .api-auth-badge.public { background: rgba(16,185,129,0.12); color: var(--green);  border: 1px solid rgba(16,185,129,0.3); }
+
+    .api-desc {
+      font-size: 0.8125rem;
+      color: var(--muted);
+      margin-bottom: 0.85rem;
+      line-height: 1.55;
+    }
+
+    .api-curl-wrap {
+      position: relative;
+    }
+
+    .api-curl {
+      background: var(--raised);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 0.85rem 3rem 0.85rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text);
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.65;
+    }
+
+    .api-copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: auto;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      background: var(--border);
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .api-copy-btn:hover { background: var(--border2); color: var(--text); }
+
+    .api-legend {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+    }
+    .api-legend span { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); }
+
     /* QR */
     .qr-wrap { text-align: center; margin-top: 0.85rem; }
     #qr-canvas { max-width: 180px; height: auto; border-radius: 8px; }
@@ -669,6 +816,198 @@
       <button class="modal-close" onclick="closeLogModal()">Close</button>
     </div>
   </div>
+
+
+  <!-- API Docs -->
+  <div class="api-docs">
+    <button class="api-docs-toggle" id="api-docs-toggle" onclick="toggleApiDocs()" aria-expanded="false">
+      <span>API reference</span>
+      <i class="chevron">▼</i>
+    </button>
+    <div class="api-docs-body" id="api-docs-body">
+
+      <div class="api-legend">
+        <span><span class="api-auth-badge public">public</span> No auth required</span>
+        <span><span class="api-auth-badge owner">owner</span> Requires X-Owner-Hash + X-Fingerprint headers</span>
+        <span><span class="api-auth-badge admin">admin</span> Requires Authorization: Bearer &lt;ADMIN_KEY&gt;</span>
+      </div>
+
+      <!-- POST /api/shorten -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method post">POST</span>
+          <span class="api-path">/api/shorten</span>
+          <span class="api-auth-badge public">public</span>
+        </div>
+        <div class="api-desc">Shorten a URL. Optionally set a custom slug, expiry, preview mode, and link ownership to your browser fingerprint.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-shorten">curl -X POST https://YOURDOMAIN/api/shorten \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/long-path",
+    "customSlug": "my-link",
+    "expiryDays": 30,
+    "preview": false
+  }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-shorten', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- POST /api/shorten (owner-linked) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method post">POST</span>
+          <span class="api-path">/api/shorten</span>
+          <span class="api-auth-badge owner">owner</span>
+        </div>
+        <div class="api-desc">Shorten and link to your browser. Include both owner headers so the link appears in My Links. Your hash is shown in the My Links tab after creating a first link via the UI.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-shorten-owned">curl -X POST https://YOURDOMAIN/api/shorten \
+  -H 'Content-Type: application/json' \
+  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
+  -d '{
+    "url": "https://example.com/long-path"
+  }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-shorten-owned', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- POST /api/lookup (single) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method post">POST</span>
+          <span class="api-path">/api/lookup</span>
+          <span class="api-auth-badge public">public</span>
+        </div>
+        <div class="api-desc">Retrieve metadata for a single slug. Returns destination URL, access count, expiry, and preview mode. Private fields (creator IP, UA, full access log) are only returned to the owner or admin.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-lookup">curl -X POST https://YOURDOMAIN/api/lookup \
+  -H 'Content-Type: application/json' \
+  -d '{ "slug": "ab3x" }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-lookup', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- POST /api/lookup (batch) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method post">POST</span>
+          <span class="api-path">/api/lookup</span>
+          <span class="api-auth-badge public">public</span>
+        </div>
+        <div class="api-desc">Batch lookup up to 50 slugs in a single request. Returns a results array and a notFound array for any slugs that don't exist.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-lookup-batch">curl -X POST https://YOURDOMAIN/api/lookup \
+  -H 'Content-Type: application/json' \
+  -d '{ "slugs": ["ab3x", "yz9q", "my-link"] }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-lookup-batch', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- GET /api/mylinks -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method get">GET</span>
+          <span class="api-path">/api/mylinks</span>
+          <span class="api-auth-badge owner">owner</span>
+        </div>
+        <div class="api-desc">List all links owned by your browser. Returns slug, destination, access count, and a redacted access log (datetime, country, browser/OS — no IP addresses).</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-mylinks-get">curl https://YOURDOMAIN/api/mylinks \
+  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Owner-Hash: YOUR_OWNER_HASH'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-get', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- PATCH /api/mylinks -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method patch">PATCH</span>
+          <span class="api-path">/api/mylinks</span>
+          <span class="api-auth-badge owner">owner</span>
+        </div>
+        <div class="api-desc">Toggle preview mode on one of your own links.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-mylinks-patch">curl -X PATCH https://YOURDOMAIN/api/mylinks \
+  -H 'Content-Type: application/json' \
+  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
+  -d '{ "slug": "ab3x", "previewMode": true }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-patch', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- DELETE /api/mylinks -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method delete">DELETE</span>
+          <span class="api-path">/api/mylinks</span>
+          <span class="api-auth-badge owner">owner</span>
+        </div>
+        <div class="api-desc">Delete one of your own links. You can only delete links you own.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-mylinks-delete">curl -X DELETE https://YOURDOMAIN/api/mylinks \
+  -H 'Content-Type: application/json' \
+  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
+  -d '{ "slug": "ab3x" }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-delete', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- GET /api/admin -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method get">GET</span>
+          <span class="api-path">/api/admin</span>
+          <span class="api-auth-badge admin">admin</span>
+        </div>
+        <div class="api-desc">List all shortened links with full metadata including creator IP, full user-agent, and complete access logs.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-admin-get">curl https://YOURDOMAIN/api/admin \
+  -H 'Authorization: Bearer YOUR_ADMIN_KEY'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-admin-get', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- DELETE /api/admin (single) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method delete">DELETE</span>
+          <span class="api-path">/api/admin</span>
+          <span class="api-auth-badge admin">admin</span>
+        </div>
+        <div class="api-desc">Delete a single link by slug.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-admin-delete">curl -X DELETE https://YOURDOMAIN/api/admin \
+  -H 'Authorization: Bearer YOUR_ADMIN_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{ "slug": "ab3x" }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-admin-delete', this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- DELETE /api/admin (purge all) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method delete">DELETE</span>
+          <span class="api-path">/api/admin</span>
+          <span class="api-auth-badge admin">admin</span>
+        </div>
+        <div class="api-desc">⚠ Permanently purge every link in the database. Irreversible.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-admin-purge">curl -X DELETE https://YOURDOMAIN/api/admin \
+  -H 'Authorization: Bearer YOUR_ADMIN_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{ "purgeAll": true }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-admin-purge', this)">Copy</button>
+        </div>
+      </div>
+
+    </div><!-- /.api-docs-body -->
+  </div><!-- /.api-docs -->
 
   <footer>
     <span id="footer-domain"></span> &nbsp;·&nbsp; <a href="./admin.html">Admin</a>
