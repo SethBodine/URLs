@@ -1113,9 +1113,8 @@
       document.getElementById('log-modal-body').innerHTML = log.slice().reverse().map((e, i) => `
         <div class="log-entry">
           <div class="le-row"><b>${new Date(e.ts).toLocaleString()}</b></div>
-          <div class="le-row">IP: <b>${esc(e.ip)}</b></div>
           <div class="le-row">Country: <b>${esc(e.country)}${e.city ? ', ' + esc(e.city) : ''}</b></div>
-          <div class="le-row">UA: <b>${esc((e.ua || '').slice(0, 80))}${(e.ua||'').length > 80 ? '…' : ''}</b></div>
+          <div class="le-row">Browser: <b>${esc(e.ua || 'Unknown')}</b></div>
         </div>`).join('');
     }
 

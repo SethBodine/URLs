@@ -26,6 +26,54 @@ const OWNER_CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, X-Owner-Hash, X-Fingerprint',
 };
 
+/**
+ * Parses a User-Agent string and returns only the browser name and OS name.
+ * Never returns the full UA string — prevents fingerprinting/tracking abuse.
+ * Examples:
+ *   "Chrome 124 / Windows"
+ *   "Safari / macOS"
+ *   "Firefox / Android"
+ */
+function parseUaSummary(ua) {
+  if (!ua || ua === 'unknown') return 'Unknown';
+
+  // OS detection (order matters — check mobile before desktop)
+  let os = 'Unknown OS';
+  if (/android/i.test(ua))                         os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua))           os = 'iOS';
+  else if (/windows nt/i.test(ua))                 os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua))         os = 'macOS';
+  else if (/linux/i.test(ua))                      os = 'Linux';
+  else if (/cros/i.test(ua))                       os = 'ChromeOS';
+
+  // Browser detection (order matters — Edge/OPR before Chrome, Chrome before Safari)
+  let browser = 'Unknown Browser';
+  if (/edg\//i.test(ua))                           browser = 'Edge';
+  else if (/opr\/|opera/i.test(ua))                browser = 'Opera';
+  else if (/firefox\/\d/i.test(ua))                browser = 'Firefox';
+  else if (/chrome\/\d/i.test(ua))                 browser = 'Chrome';
+  else if (/safari\/\d/i.test(ua) && /version\//i.test(ua)) browser = 'Safari';
+  else if (/curl\//i.test(ua))                     browser = 'curl';
+  else if (/bot|crawler|spider/i.test(ua))         browser = 'Bot';
+
+  return `${browser} / ${os}`;
+}
+
+/**
+ * Returns a redacted access log entry safe for owner consumption.
+ * IP address and full User-Agent are never exposed — only datetime,
+ * country, and a parsed browser/OS summary.
+ */
+function redactLogEntry(entry) {
+  return {
+    ts:      entry.ts,
+    country: entry.country || 'unknown',
+    city:    entry.city    || undefined,
+    ua:      parseUaSummary(entry.ua),
+    // ip and full ua intentionally omitted
+  };
+}
+
 function ownerView(record, baseUrl) {
   return {
     slug:        record.slug,
@@ -37,7 +85,7 @@ function ownerView(record, baseUrl) {
     expiryDays:  record.expiryDays || null,
     accessCount: record.accessCount || 0,
     lastAccessed:record.lastAccessed || null,
-    accessLog:   record.accessLog   || [],
+    accessLog:   (record.accessLog || []).map(redactLogEntry),
   };
 }
 
