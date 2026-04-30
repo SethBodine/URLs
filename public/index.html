@@ -1515,6 +1515,35 @@
   }
   applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 
+
+  // ═══════════════════════════════════════════════════════════════
+  // API DOCS
+  // ═══════════════════════════════════════════════════════════════
+  function toggleApiDocs() {
+    const toggle = document.getElementById('api-docs-toggle');
+    const body   = document.getElementById('api-docs-body');
+    const open   = body.classList.toggle('open');
+    toggle.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open);
+    if (open) {
+      document.querySelectorAll('.api-curl').forEach(el => {
+        el.textContent = el.textContent.replaceAll('YOURDOMAIN', location.hostname);
+      });
+    }
+  }
+
+  function copyCurl(id, btn) {
+    const text = document.getElementById(id)?.textContent || '';
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }).catch(() => {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
+  }
+
 </script>
 
   <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()">☀ Light</button>
