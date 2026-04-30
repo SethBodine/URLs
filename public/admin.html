@@ -512,14 +512,19 @@
       inactivityTimer = setTimeout(inactivityLogout, INACTIVITY_MS);
     }
 
+    let _loggedOut = false;
     function inactivityLogout() {
+      if (_loggedOut) return;
+      _loggedOut = true;
+      clearTimeout(inactivityTimer);
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(ACTIVITY_KEY);
       // Show a brief message before reload so the user knows why they were logged out
       const wrap = document.getElementById('auth-wrap');
       const card = wrap?.querySelector('.auth-card');
-      if (card) {
+      if (card && !card.querySelector('.inactivity-msg')) {
         const msg = document.createElement('p');
+        msg.className = 'inactivity-msg';
         msg.textContent = 'Logged out after 1 hour of inactivity.';
         msg.style.cssText = 'color:#f59e0b;font-size:0.8125rem;text-align:center;margin-bottom:1rem;';
         card.insertBefore(msg, card.firstChild);

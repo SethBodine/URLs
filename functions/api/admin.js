@@ -18,12 +18,17 @@ function unauthorized(request) {
   );
 }
 
+// Rate limit counter keys are prefixed "rl:" — exclude from all link operations
+function isLinkKey(name) {
+  return !name.startsWith('rl:');
+}
+
 async function getAllLinks(kv) {
   const links = [];
   let cursor;
   do {
     const result = await kv.list({ cursor, limit: 1000 });
-    await Promise.all(result.keys.map(async (key) => {
+    await Promise.all(result.keys.filter(k => isLinkKey(k.name)).map(async (key) => {
       const data = await kv.get(key.name, { type: 'json' });
       if (data) links.push(data);
     }));
@@ -70,7 +75,7 @@ export async function onRequestDelete(context) {
       let cursor, deleted = 0;
       do {
         const result = await env.LINKS.list({ cursor, limit: 1000 });
-        await Promise.all(result.keys.map(k => env.LINKS.delete(k.name)));
+        await Promise.all(result.keys.filter(k => isLinkKey(k.name)).map(k => env.LINKS.delete(k.name)));
         deleted += result.keys.length;
         cursor = result.cursor;
         if (result.list_complete) break;
