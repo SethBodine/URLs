@@ -497,10 +497,55 @@
       document.getElementById('admin-title').textContent = location.hostname + ' admin';
     })();
 
-    const SESSION_KEY = 'admin_key_' + location.hostname;
-    let adminKey = sessionStorage.getItem(SESSION_KEY) || '';
-    let allLinks = [];
+    const SESSION_KEY    = 'admin_key_' + location.hostname;
+    const ACTIVITY_KEY   = 'admin_activity_' + location.hostname;
+    const INACTIVITY_MS  = 60 * 60 * 1000; // 1 hour
 
+    let adminKey  = sessionStorage.getItem(SESSION_KEY) || '';
+    let allLinks  = [];
+    let inactivityTimer = null;
+
+    // ── Inactivity logout ────────────────────────────────────────────────────
+    function resetInactivityTimer() {
+      sessionStorage.setItem(ACTIVITY_KEY, Date.now());
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(inactivityLogout, INACTIVITY_MS);
+    }
+
+    function inactivityLogout() {
+      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(ACTIVITY_KEY);
+      // Show a brief message before reload so the user knows why they were logged out
+      const wrap = document.getElementById('auth-wrap');
+      const card = wrap?.querySelector('.auth-card');
+      if (card) {
+        const msg = document.createElement('p');
+        msg.textContent = 'Logged out after 1 hour of inactivity.';
+        msg.style.cssText = 'color:#f59e0b;font-size:0.8125rem;text-align:center;margin-bottom:1rem;';
+        card.insertBefore(msg, card.firstChild);
+      }
+      document.getElementById('auth-wrap').style.display = '';
+      document.getElementById('admin-panel').classList.remove('active');
+      adminKey = '';
+    }
+
+    function startInactivityWatch() {
+      // Reset timer on any mouse, keyboard, or touch activity
+      ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt =>
+        document.addEventListener(evt, resetInactivityTimer, { passive: true })
+      );
+
+      // Check if the tab was left open and already expired (e.g. computer woke from sleep)
+      const lastActivity = parseInt(sessionStorage.getItem(ACTIVITY_KEY) || '0', 10);
+      if (lastActivity && Date.now() - lastActivity >= INACTIVITY_MS) {
+        inactivityLogout();
+        return;
+      }
+
+      resetInactivityTimer();
+    }
+
+    // ── Session ──────────────────────────────────────────────────────────────
     if (adminKey) showPanel();
 
     document.getElementById('auth-form').addEventListener('submit', (e) => {
@@ -512,11 +557,14 @@
     function showPanel() {
       document.getElementById('auth-wrap').style.display = 'none';
       document.getElementById('admin-panel').classList.add('active');
+      startInactivityWatch();
       loadLinks();
     }
 
     function logout() {
+      clearTimeout(inactivityTimer);
       sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(ACTIVITY_KEY);
       location.reload();
     }
 

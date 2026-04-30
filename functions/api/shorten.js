@@ -103,7 +103,7 @@ export async function onRequestPost(context) {
   }
 
   // ── Creator metadata ───────────────────────────────────────────────────────
-  const ip      = (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown');
+  // ip already declared above by getCallerIp(request)
   const ua      = (request.headers.get('User-Agent') || 'unknown').slice(0, 512);
   const country = request.cf?.country || 'unknown';
   const city    = request.cf?.city    || undefined;
