@@ -24,15 +24,7 @@ export async function onRequest(context) {
     const record = await env.LINKS.get(slug.toLowerCase(), { type: 'json' });
 
     if (!record) {
-      return new Response(getStatusMessage(404), {
-        status: 404,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          ...BASE_HEADERS,
-          'X-Truth':  getRandomConspiracy(),
-          'X-Status': 'MEMORY-HOLED',
-        },
-      });
+      return notFoundPage(slug, getRandomConspiracy());
     }
 
     // ── Record the access asynchronously (non-blocking) ───────────────────
@@ -231,6 +223,130 @@ function previewInterstitial(record, conspiracy, request) {
       'X-Frame-Options':       'DENY',
       'X-Content-Type-Options':'nosniff',
       'Referrer-Policy':       'no-referrer',
+      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    },
+  });
+}
+
+function notFoundPage(slug, conspiracy) {
+  const DELAY = 5;
+  const safeSlug = escapeHtml(slug);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <title>Not Found — b0x.nz</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0d; --surface: #1a1a1a; --border: #2a2a2a;
+      --text: #f0f0f0; --muted: #888; --accent: #f59e0b;
+      --danger: #ef4444;
+      --radius: 8px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 2.5rem; max-width: 520px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(239,68,68,0.15); color: var(--danger);
+      border: 1px solid rgba(239,68,68,0.3); border-radius: 999px;
+      padding: 0.3rem 0.85rem; font-size: 0.75rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1.5rem;
+    }
+    h1 { font-size: 1.375rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 1.75rem; }
+    .countdown-ring {
+      display: flex; align-items: center; justify-content: center; margin-bottom: 1.75rem;
+    }
+    svg.ring { width: 80px; height: 80px; transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: var(--border); stroke-width: 6; }
+    .ring-fill { fill: none; stroke: var(--danger); stroke-width: 6; stroke-linecap: round;
+      stroke-dasharray: 220; stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear;
+    }
+    .ring-text { font-size: 1.5rem; font-weight: 700; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+    .btn {
+      width: 100%; padding: 0.75rem; font-size: 0.875rem; font-weight: 500;
+      border-radius: var(--radius); cursor: pointer; border: none;
+      font-family: inherit; transition: opacity 0.15s, transform 0.1s;
+      background: var(--border); color: var(--text);
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:hover { opacity: 0.85; }
+    .slug-ref { text-align: center; margin-top: 1.25rem; color: var(--muted); font-size: 0.8rem; }
+    .slug-ref code { background: #111; padding: 0.15rem 0.4rem; border-radius: 4px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">404 Not Found</div>
+    <h1>URL not found</h1>
+    <p class="subtitle">This short link doesn't exist. Returning you to <strong>b0x.nz</strong> in <strong id="sec">${DELAY}</strong> seconds.</p>
+
+    <div class="countdown-ring">
+      <svg class="ring" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <circle class="ring-bg" cx="40" cy="40" r="35"/>
+        <circle class="ring-fill" id="ring" cx="40" cy="40" r="35"/>
+        <text class="ring-text" x="40" y="40" transform="rotate(90 40 40)" id="ring-num">${DELAY}</text>
+      </svg>
+    </div>
+
+    <button class="btn" onclick="goNow()">Go to b0x.nz now</button>
+    <div class="slug-ref">Requested: <code>${safeSlug}</code></div>
+  </div>
+
+  <script>
+    const DELAY = ${DELAY};
+    const CIRCUMFERENCE = 2 * Math.PI * 35;
+    let remaining = DELAY;
+
+    const ring    = document.getElementById('ring');
+    const ringNum = document.getElementById('ring-num');
+    const secEl   = document.getElementById('sec');
+
+    ring.style.strokeDasharray  = CIRCUMFERENCE;
+    ring.style.strokeDashoffset = 0;
+
+    const timer = setInterval(() => {
+      remaining--;
+      ringNum.textContent = remaining;
+      secEl.textContent   = remaining;
+      ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - remaining / DELAY);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        goNow();
+      }
+    }, 1000);
+
+    function goNow() {
+      window.location.href = 'https://b0x.nz';
+    }
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 404,
+    headers: {
+      'Content-Type':           'text/html; charset=utf-8',
+      'X-Truth':                conspiracy,
+      'X-Status':               'MEMORY-HOLED',
+      'Cache-Control':          'no-store, no-cache',
+      'X-Frame-Options':        'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy':        'no-referrer',
       'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
     },
   });
