@@ -943,7 +943,7 @@
         <div class="api-curl-wrap">
           <pre class="api-curl" id="curl-shorten-owned">curl -X POST https://YOURDOMAIN/api/shorten \
   -H 'Content-Type: application/json' \
-  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Fingerprint: "YOUR_RAW_FINGERPRINT"' \
   -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
   -d '{
     "url": "https://example.com/long-path"
@@ -994,7 +994,7 @@
         <div class="api-desc">List all links owned by your browser. Returns slug, destination, access count, and a redacted access log (datetime, country, browser/OS — no IP addresses).</div>
         <div class="api-curl-wrap">
           <pre class="api-curl" id="curl-mylinks-get">curl https://YOURDOMAIN/api/mylinks \
-  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Fingerprint: "YOUR_RAW_FINGERPRINT"' \
   -H 'X-Owner-Hash: YOUR_OWNER_HASH'</pre>
           <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-get', this)">Copy</button>
         </div>
@@ -1011,7 +1011,7 @@
         <div class="api-curl-wrap">
           <pre class="api-curl" id="curl-mylinks-patch">curl -X PATCH https://YOURDOMAIN/api/mylinks \
   -H 'Content-Type: application/json' \
-  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Fingerprint: "YOUR_RAW_FINGERPRINT"' \
   -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
   -d '{ "slug": "ab3x", "previewMode": true }'</pre>
           <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-patch', this)">Copy</button>
@@ -1029,7 +1029,7 @@
         <div class="api-curl-wrap">
           <pre class="api-curl" id="curl-mylinks-delete">curl -X DELETE https://YOURDOMAIN/api/mylinks \
   -H 'Content-Type: application/json' \
-  -H 'X-Fingerprint: YOUR_RAW_FINGERPRINT' \
+  -H 'X-Fingerprint: "YOUR_RAW_FINGERPRINT"' \
   -H 'X-Owner-Hash: YOUR_OWNER_HASH' \
   -d '{ "slug": "ab3x" }'</pre>
           <button class="api-copy-btn" onclick="copyCurl('curl-mylinks-delete', this)">Copy</button>

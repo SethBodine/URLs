@@ -110,8 +110,8 @@ export async function deriveOwnerHash(rawFingerprint, env) {
  * Returns the verified hash or null.
  */
 export async function getVerifiedOwnerHash(request, env) {
-  const sentHash = (request.headers.get('X-Owner-Hash') || '').trim().toLowerCase();
-  const rawFp    = (request.headers.get('X-Fingerprint') || '').trim();
+  const sentHash = (request.headers.get('X-Owner-Hash') || '').trim().replace(/^"+|"+$/g, '').toLowerCase();
+  const rawFp    = (request.headers.get('X-Fingerprint') || '').trim().replace(/^"+|"+$/g, '');
   if (!sentHash || !rawFp) return null;
   if (!/^[a-f0-9]{32}$/.test(sentHash)) return null;
 
