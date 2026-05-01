@@ -207,6 +207,10 @@ function previewInterstitial(record, conspiracy, request) {
       ringNum.textContent = '✕';
       secEl.textContent = '—';
       document.querySelector('.subtitle').textContent = 'Redirect cancelled. You can close this tab.';
+      document.querySelector('.btn-cancel').disabled = true;
+      document.querySelector('.btn-proceed').textContent = 'Go anyway';
+      // Replace history entry so reload/back doesn't re-trigger the preview countdown
+      history.replaceState(null, '', '/');
     }
 
     function proceedNow() {
