@@ -86,6 +86,22 @@ export async function onRequestDelete(context) {
     }
   }
 
+  // Batch delete: { slugs: ["a", "b", ...] }
+  if (Array.isArray(bodyResult.body.slugs)) {
+    const { slugs } = bodyResult.body;
+    if (slugs.length === 0) return jsonResponse({ error: 'slugs array must not be empty.' }, 400, CORS_ADMIN);
+    if (slugs.length > 500) return jsonResponse({ error: 'Maximum 500 slugs per batch.' }, 400, CORS_ADMIN);
+    const validated = slugs.map(s => validateLookupSlug(s));
+    const invalid = validated.filter(v => !v.ok);
+    if (invalid.length) return jsonResponse({ error: `Invalid slug(s): ${invalid.map(v => v.error).join('; ')}` }, 422, CORS_ADMIN);
+    try {
+      await Promise.all(validated.map(v => env.LINKS.delete(v.slug)));
+      return jsonResponse({ success: true, deleted: validated.length, slugs: validated.map(v => v.slug), truth: getRandomConspiracy() }, 200, CORS_ADMIN);
+    } catch {
+      return jsonResponse({ error: 'Batch delete failed.' }, 500, CORS_ADMIN);
+    }
+  }
+
   if (slug !== undefined) {
     const sv = validateLookupSlug(slug);
     if (!sv.ok) {
@@ -100,7 +116,7 @@ export async function onRequestDelete(context) {
   }
 
   return jsonResponse(
-    { error: 'Provide either { "slug": "..." } to delete one, or { "purgeAll": true } to wipe all.', truth: getRandomConspiracy() },
+    { error: 'Provide { "slug": "..." }, { "slugs": [...] }, or { "purgeAll": true }.', truth: getRandomConspiracy() },
     400,
     CORS_ADMIN
   );

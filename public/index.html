@@ -1068,6 +1068,23 @@
         </div>
       </div>
 
+      <!-- DELETE /api/admin (batch) -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="api-method delete">DELETE</span>
+          <span class="api-path">/api/admin</span>
+          <span class="api-auth-badge admin">admin</span>
+        </div>
+        <div class="api-desc">Delete multiple links in a single request. Pass an array of slugs — all are validated first, then deleted in parallel. Maximum 500 slugs per call.</div>
+        <div class="api-curl-wrap">
+          <pre class="api-curl" id="curl-admin-delete-batch">curl -X DELETE https://YOURDOMAIN/api/admin \
+  -H 'Authorization: Bearer YOUR_ADMIN_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{ "slugs": ["ab3x", "yz9q", "my-link"] }'</pre>
+          <button class="api-copy-btn" onclick="copyCurl('curl-admin-delete-batch', this)">Copy</button>
+        </div>
+      </div>
+
       <!-- DELETE /api/admin (purge all) -->
       <div class="api-endpoint">
         <div class="api-endpoint-header">

@@ -18,7 +18,7 @@ Minimal, secure, zero-cost URL shortener running entirely on Cloudflare Pages + 
 - **Access logging** — IP, user agent, country, city, and timestamp per visit (rolling 50-entry window)
 - **Google Safe Browsing** check at creation time (optional, free)
 - QR codes with custom logo (client-side, no third-party)
-- Admin panel (`/admin.html`) with full stats and search
+- Admin panel (`/admin.html`) with full stats, search, select mode, and batch delete
 - JSON API with single and batch slug lookup
 - OWASP Top 10 mitigations (see Security section)
 - Conspiracy Easter eggs in `X-Truth` response header
@@ -397,12 +397,19 @@ List all links. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ### `DELETE /api/admin`
 
-Delete one link or purge all. Requires `Authorization: Bearer ADMIN_KEY`.
+Delete one link, a batch of links, or purge everything. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ```json
 { "slug": "ab3x" }
+{ "slugs": ["ab3x", "yz9q", "my-link"] }
 { "purgeAll": true }
 ```
+
+| Body field | Type | Description |
+|---|---|---|
+| `slug` | string | Delete a single link by slug |
+| `slugs` | string[] | Delete up to 500 links in one call — all validated before any are deleted |
+| `purgeAll` | boolean | Wipe every link in the database — irreversible |
 
 ---
 
@@ -454,6 +461,12 @@ curl -X DELETE https://b0x.nz/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"slug":"ab3x"}'
+
+# Batch delete links (admin) — single call, up to 500 slugs
+curl -X DELETE https://b0x.nz/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"slugs":["ab3x","yz9q","my-link"]}'
 
 # Check conspiracy header
 curl -sI https://b0x.nz/ab3x | grep x-truth

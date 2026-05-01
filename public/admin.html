@@ -275,6 +275,42 @@
     }
     .delete-btn:hover { background: rgba(239,68,68,0.25); }
 
+    /* ── Select mode ── */
+    .col-check { width: 2rem; text-align: center; }
+    .row-checkbox {
+      width: 1rem; height: 1rem;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .select-bar {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.55rem 1rem;
+      background: var(--raised);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .select-bar strong { color: var(--text); }
+    #btn-delete-selected {
+      margin-left: auto;
+      padding: 0.35rem 1rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(239,68,68,0.15);
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.35);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #btn-delete-selected:hover:not(:disabled) { background: rgba(239,68,68,0.28); }
+    #btn-delete-selected:disabled { opacity: 0.35; cursor: not-allowed; }
+    /* hide checkbox col when not in select mode */
+    .th-check, .td-check { display: none; }
+    body.select-mode .th-check,
+    body.select-mode .td-check { display: table-cell; }
+
     /* ── Theme toggle ── */
     .theme-toggle {
       background: var(--raised);
@@ -433,13 +469,21 @@
 
     <div class="controls">
       <input type="text" class="search-input" id="search-input" placeholder="Search slug, url, IP, country…" />
-      <button class="btn-ghost btn-danger" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;" onclick="confirmPurge()">Purge All</button>
+      <button class="btn-ghost" id="btn-select-toggle" onclick="toggleSelectMode()" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;">Select</button>
+      <button class="btn-ghost btn-danger" id="btn-purge" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;" onclick="confirmPurge()">Purge All</button>
+    </div>
+
+    <!-- Select-mode action bar (hidden until select mode active) -->
+    <div class="select-bar" id="select-bar" style="display:none;">
+      <span id="select-summary">0 selected</span>
+      <button id="btn-delete-selected" disabled onclick="confirmDeleteSelected()">Delete 0</button>
     </div>
 
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="th-check col-check"><input type="checkbox" class="row-checkbox" id="check-all" onchange="toggleSelectAll(this)"></th>
             <th>Slug</th>
             <th>Destination</th>
             <th>Created</th>
@@ -591,10 +635,14 @@
         if (l.url.toLowerCase().includes(q)) return true;
         if ((l.creatorCountry || l.country || '').toLowerCase().includes(q)) return true;
         if ((l.creatorIp || l.ip || '').toLowerCase().includes(q)) return true;
-        // search access log IPs too
         if (Array.isArray(l.accessLog) && l.accessLog.some(e => (e.ip || '').toLowerCase().includes(q))) return true;
         return false;
       }));
+      // clear selections when search changes — avoids deleting rows no longer visible
+      document.querySelectorAll('.row-checkbox').forEach(c => c.checked = false);
+      const headerCb = document.getElementById('check-all');
+      headerCb.checked = false; headerCb.indeterminate = false;
+      if (selectModeActive) updateSelectionBar();
     });
 
     function renderLinks(links) {
@@ -642,7 +690,8 @@
           sbHtml = `<span class="sb-badge sb-skipped">— No data</span>`;
         }
 
-        const mainRow = `<tr>
+        const mainRow = `<tr data-slug="${esc(link.slug)}">
+          <td class="td-check col-check"><input type="checkbox" class="row-checkbox" onchange="onRowCheck()"></td>
           <td><a href="${shortUrl}" class="slug-link" target="_blank">${esc(link.slug)}</a></td>
           <td><div class="dest-cell" title="${esc(link.url)}">${esc(link.url)}</div></td>
           <td>${esc(created)}</td>
@@ -683,6 +732,83 @@
 
       const owned = allLinks.filter(l => l.ownerHash).length;
       document.getElementById('owned-count').textContent = owned;
+    }
+
+    // ── Select mode ──────────────────────────────────────────────────────────
+    let selectModeActive = false;
+
+    function toggleSelectMode() {
+      selectModeActive = !selectModeActive;
+      document.body.classList.toggle('select-mode', selectModeActive);
+      const btn = document.getElementById('btn-select-toggle');
+      const bar = document.getElementById('select-bar');
+      const purgeBtn = document.getElementById('btn-purge');
+      btn.textContent = selectModeActive ? 'Cancel' : 'Select';
+      btn.style.color  = selectModeActive ? 'var(--red)' : '';
+      bar.style.display = selectModeActive ? 'flex' : 'none';
+      purgeBtn.style.display = selectModeActive ? 'none' : '';
+      // clear all checkboxes when toggling off
+      if (!selectModeActive) {
+        document.querySelectorAll('.row-checkbox').forEach(c => c.checked = false);
+        updateSelectionBar();
+      }
+    }
+
+    function getCheckedSlugs() {
+      return Array.from(document.querySelectorAll('#links-table tr[data-slug] .row-checkbox'))
+        .filter(c => c.checked)
+        .map(c => c.closest('tr').dataset.slug);
+    }
+
+    function onRowCheck() {
+      // sync header checkbox state
+      const all  = document.querySelectorAll('#links-table tr[data-slug] .row-checkbox');
+      const checked = Array.from(all).filter(c => c.checked);
+      const headerCb = document.getElementById('check-all');
+      headerCb.checked = checked.length === all.length && all.length > 0;
+      headerCb.indeterminate = checked.length > 0 && checked.length < all.length;
+      updateSelectionBar();
+    }
+
+    function toggleSelectAll(headerCb) {
+      document.querySelectorAll('#links-table tr[data-slug] .row-checkbox')
+        .forEach(c => c.checked = headerCb.checked);
+      updateSelectionBar();
+    }
+
+    function updateSelectionBar() {
+      const slugs = getCheckedSlugs();
+      const n = slugs.length;
+      const isSearch = document.getElementById('search-input').value.trim() !== '';
+      document.getElementById('select-summary').innerHTML =
+        n === 0
+          ? (isSearch ? '<strong>Search active</strong> — check rows to select' : 'Check rows to select')
+          : `<strong>${n}</strong> selected${isSearch ? ' (from search results)' : ''}`;
+      const btn = document.getElementById('btn-delete-selected');
+      btn.disabled = n === 0;
+      btn.textContent = n === 0 ? 'Delete' : `Delete ${n}`;
+    }
+
+    function confirmDeleteSelected() {
+      const slugs = getCheckedSlugs();
+      if (!slugs.length) return;
+      const isSearch = document.getElementById('search-input').value.trim() !== '';
+      const label = isSearch ? `${slugs.length} selected (filtered) link${slugs.length > 1 ? 's' : ''}` : `${slugs.length} link${slugs.length > 1 ? 's' : ''}`;
+      showModal('Delete Links', `Permanently delete ${label}? This cannot be undone.`, () => deleteSelected(slugs));
+    }
+
+    async function deleteSelected(slugs) {
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slugs }),
+        });
+        if (!res.ok) throw new Error('Batch delete failed');
+        closeModal();
+        toggleSelectMode(); // exit select mode after delete
+        loadLinks();
+      } catch (err) { alert(err.message); }
     }
 
     function confirmDelete(btn) {
