@@ -623,7 +623,15 @@
         if (!res.ok) { if (res.status === 401) { alert('Invalid admin key'); logout(); return; } throw new Error('Failed'); }
         const data = await res.json();
         allLinks = (data.links || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        renderLinks(allLinks);
+        const q = document.getElementById('search-input').value.trim().toLowerCase();
+        renderLinks(q ? allLinks.filter(l => {
+          if (l.slug.toLowerCase().includes(q)) return true;
+          if (l.url.toLowerCase().includes(q)) return true;
+          if ((l.creatorCountry || l.country || '').toLowerCase().includes(q)) return true;
+          if ((l.creatorIp || l.ip || '').toLowerCase().includes(q)) return true;
+          if (Array.isArray(l.accessLog) && l.accessLog.some(e => (e.ip || '').toLowerCase().includes(q))) return true;
+          return false;
+        }) : allLinks);
         updateStats();
       } catch (err) { alert(err.message); }
     }
