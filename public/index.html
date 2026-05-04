@@ -849,7 +849,7 @@
           <div class="result-url" id="result-url"></div>
           <div class="result-meta" id="result-meta"></div>
           <div class="action-row">
-            <button class="btn-sm" onclick="copyUrl()">Copy</button>
+            <button class="btn-sm" onclick="copyUrl(this)">Copy</button>
             <button class="btn-sm" onclick="toggleQR()">QR Code</button>
           </div>
           <div class="qr-wrap" id="qr-wrap" style="display:none;">
@@ -1347,10 +1347,12 @@
     }
   }
 
-  function copyUrl() {
+  function copyUrl(btn) {
     navigator.clipboard.writeText(currentShortUrl).then(() => {
-      const btn = event.target;
       btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    }).catch(() => {
+      btn.textContent = 'Failed';
       setTimeout(() => btn.textContent = 'Copy', 1500);
     });
   }
@@ -1377,8 +1379,12 @@
 
     setTimeout(() => {
       const img = tmp.querySelector('img');
+      const qrCanvas = tmp.querySelector('canvas');
       const draw = () => { ctx.drawImage(img, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
-      if (img && img.complete) draw(); else if (img) img.onload = draw;
+      const drawFromCanvas = () => { ctx.drawImage(qrCanvas, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
+      if (img && img.complete) draw();
+      else if (img) img.onload = draw;
+      else if (qrCanvas) drawFromCanvas();
     }, 80);
   }
 
