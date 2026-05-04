@@ -1377,15 +1377,31 @@
 
     new QRCode(tmp, { text: url, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
 
-    setTimeout(() => {
-      const img = tmp.querySelector('img');
-      const qrCanvas = tmp.querySelector('canvas');
+    const img = tmp.querySelector('img');
+    if (img) {
       const draw = () => { ctx.drawImage(img, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
-      const drawFromCanvas = () => { ctx.drawImage(qrCanvas, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
-      if (img && img.complete) draw();
-      else if (img) img.onload = draw;
-      else if (qrCanvas) drawFromCanvas();
-    }, 80);
+      if (img.complete) draw(); else img.onload = draw;
+    } else {
+      // Mobile browsers (e.g. iOS Safari): qrcodejs renders to canvas instead of img.
+      // Poll until the canvas has actual pixels (not just the element being present).
+      let attempts = 0;
+      const poll = setInterval(() => {
+        const qrCanvas = tmp.querySelector('canvas');
+        if (qrCanvas) {
+          const px = qrCanvas.getContext('2d').getImageData(0, 0, 1, 1).data;
+          const hasPixels = px[3] > 0;
+          if (hasPixels || ++attempts > 20) {
+            clearInterval(poll);
+            ctx.drawImage(qrCanvas, 0, 0, 200, 200);
+            addQRBadge(ctx);
+            tmp.remove();
+          }
+        } else if (++attempts > 20) {
+          clearInterval(poll);
+          tmp.remove();
+        }
+      }, 50);
+    }
   }
 
   function addQRBadge(ctx) {
