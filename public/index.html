@@ -1158,20 +1158,9 @@
       navigator.cookieEnabled,
     ];
 
-    // Canvas fingerprint
-    try {
-      const c = document.createElement('canvas');
-      const ctx = c.getContext('2d');
-      ctx.textBaseline = 'top';
-      ctx.font = '14px Arial';
-      ctx.fillStyle = '#f60';
-      ctx.fillRect(125, 1, 62, 20);
-      ctx.fillStyle = '#069';
-      ctx.fillText('b0x.nz 🔒', 2, 15);
-      ctx.fillStyle = 'rgba(102,204,0,0.7)';
-      ctx.fillText('b0x.nz 🔒', 4, 17);
-      signals.push(c.toDataURL());
-    } catch {}
+    // Canvas fingerprint intentionally omitted — toDataURL output varies across
+    // mobile browsers and OS versions, making the fingerprint unstable between
+    // page loads on the same device. The UUID below provides stable identity.
 
     // Stored UUID for extra stability
     let uuid = localStorage.getItem(FP_KEY + '_uuid');
@@ -1377,33 +1366,31 @@
 
     new QRCode(tmp, { text: url, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
 
-    // Give qrcodejs time to create its elements, then check what it produced.
-    // Desktop: creates an <img> (data URI). Mobile Safari: creates a <canvas> directly.
-    setTimeout(() => {
-      const img = tmp.querySelector('img');
-      if (img) {
+    // qrcodejs creates both <canvas> and <img> in tmp, but on Android the img.src
+    // is populated asynchronously — img exists and img.complete is true but src is
+    // still blank at draw time. On iOS Safari only a <canvas> is created, no <img>.
+    // Poll to handle all three cases: desktop (sync img), Android (async img), iOS (canvas only).
+    let attempts = 0;
+    const poll = setInterval(() => {
+      const img      = tmp.querySelector('img');
+      const qrCanvas = tmp.querySelector('canvas');
+      if (img && img.src && img.src !== window.location.href) {
+        clearInterval(poll);
         const draw = () => { ctx.drawImage(img, 0, 0, 200, 200); addQRBadge(ctx); tmp.remove(); };
         if (img.complete) draw(); else img.onload = draw;
-      } else {
-        // Canvas path: poll until pixels are actually drawn before copying.
-        let attempts = 0;
-        const poll = setInterval(() => {
-          const qrCanvas = tmp.querySelector('canvas');
-          if (qrCanvas) {
-            const px = qrCanvas.getContext('2d').getImageData(0, 0, 1, 1).data;
-            if (px[3] > 0 || ++attempts > 20) {
-              clearInterval(poll);
-              ctx.drawImage(qrCanvas, 0, 0, 200, 200);
-              addQRBadge(ctx);
-              tmp.remove();
-            }
-          } else if (++attempts > 20) {
-            clearInterval(poll);
-            tmp.remove();
-          }
-        }, 50);
+      } else if (!img && qrCanvas) {
+        const px = qrCanvas.getContext('2d').getImageData(0, 0, 1, 1).data;
+        if (px[3] > 0 || ++attempts > 20) {
+          clearInterval(poll);
+          ctx.drawImage(qrCanvas, 0, 0, 200, 200);
+          addQRBadge(ctx);
+          tmp.remove();
+        }
+      } else if (++attempts > 20) {
+        clearInterval(poll);
+        tmp.remove();
       }
-    }, 80);
+    }, 50);
   }
 
   function addQRBadge(ctx) {
