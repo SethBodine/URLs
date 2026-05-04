@@ -1158,9 +1158,26 @@
       navigator.cookieEnabled,
     ];
 
-    // Canvas fingerprint intentionally omitted — toDataURL output varies across
-    // mobile browsers and OS versions, making the fingerprint unstable between
-    // page loads on the same device. The UUID below provides stable identity.
+    // Canvas fingerprint — generated once and cached in localStorage so it stays
+    // stable across page loads on all browsers (Android canvas rendering can vary).
+    try {
+      let canvasFp = localStorage.getItem(FP_KEY + '_cvs');
+      if (!canvasFp) {
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = '#069';
+        ctx.fillText('b0x.nz 🔒', 2, 15);
+        ctx.fillStyle = 'rgba(102,204,0,0.7)';
+        ctx.fillText('b0x.nz 🔒', 4, 17);
+        canvasFp = c.toDataURL();
+        localStorage.setItem(FP_KEY + '_cvs', canvasFp);
+      }
+      signals.push(canvasFp);
+    } catch {}
 
     // Stored UUID for extra stability
     let uuid = localStorage.getItem(FP_KEY + '_uuid');
