@@ -7,21 +7,24 @@
  *      Manually kick off a rescan from the admin panel or curl.
  *      Body (optional JSON): { "forceAll": true }   — re-check even deactivated links
  *
- *   2. export const onScheduled (Cloudflare cron trigger)
- *      Cloudflare calls this on the schedule defined in wrangler.toml [triggers].
- *      See: https://developers.cloudflare.com/pages/functions/scheduling/
+ *   2. onScheduled export (Cloudflare Pages cron trigger)
+ *      Cloudflare calls this automatically on the schedule you configure.
  *
- * Setup
- * ─────
- * Add to wrangler.toml:
+ * ── Cron Setup (Pages projects) ──────────────────────────────────────────────
+ * [triggers] in wrangler.toml is a Workers-only key — it causes a build failure
+ * in Pages projects. Configure the cron through the Cloudflare dashboard instead:
  *
- *   [triggers]
- *   crons = ["0 3 * * *"]   # daily at 03:00 UTC — adjust to taste
+ *   Workers & Pages → your project → Settings → Functions → Cron Triggers
+ *   → Add trigger:  0 3 * * *   (daily 03:00 UTC — adjust to taste)
  *
- * Then deploy:  npx wrangler pages deploy public --project-name=link-shortener
+ * The onScheduled handler below will be called automatically once configured.
+ * The cron only fires in deployed environments — not during `wrangler pages dev`.
  *
- * The cron only fires in the deployed (production/preview) environment —
- * it does NOT run during `wrangler pages dev`.
+ * ── Manual trigger (no cron needed) ──────────────────────────────────────────
+ * Use the ⟳ Rescan button in the admin panel, or:
+ *   curl -X POST https://your-domain/api/scan \
+ *        -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+ *        -H "Content-Type: application/json" -d '{}'
  */
 
 import { getRandomConspiracy } from '../_conspiracies.js';

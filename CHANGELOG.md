@@ -19,7 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Admin API at `GET|POST|DELETE /api/blocklist` for listing, manually adding, and removing blocked IPs
 
 #### Scheduled Safe Browsing Rescan (`functions/_rescan.js`, `functions/api/scan.js`)
-- Daily cron trigger at `03:00 UTC` (configurable in `wrangler.toml` under `[triggers]`)
+- Daily cron trigger at `03:00 UTC` configurable via the Cloudflare dashboard: **Workers & Pages → project → Settings → Functions → Cron Triggers** — enter `0 3 * * *`. Note: `[triggers]` in `wrangler.toml` is a Workers-only key and causes a build failure in Pages projects; cron must be configured through the dashboard
 - Re-checks every active link against Google Safe Browsing; deactivates flagged links and blocks their creator IPs without deleting any records
 - `POST /api/scan` HTTP endpoint for admin-triggered manual rescans (body `{ "forceAll": true }` to also re-check already-deactivated links)
 - Rescan results returned as a stats object: `scanned`, `clean`, `newlyFlagged`, `ipsBlocked`, `skipped`, `errors`, `flaggedSlugs`
@@ -128,7 +128,7 @@ Blocklist entries are stored under `bl:ip:{normalized-ip}`:
 | `functions/api/blocklist.js` | **New** | `GET|POST|DELETE /api/blocklist` admin API |
 | `functions/api/admin.js` | **Updated** | `isLinkKey()` filters `bl:ip:` keys |
 | `public/admin.html` | **Updated** | Rescan button, blocklist panel, deactivated styling |
-| `wrangler.toml` | **Updated** | Added `[triggers] crons = ["0 3 * * *"]` |
+| `wrangler.toml` | **Updated** | Removed `[triggers]` (Pages build failure) — cron configured via dashboard |
 
 ---
 

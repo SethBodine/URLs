@@ -193,13 +193,16 @@ Commit and push.
 | `OWNER_HASH_SECRET` | `openssl rand -hex 32` | ✅ Yes |
 | `SAFE_BROWSING_API_KEY` | *(your Google API key)* | ✅ Yes |
 
-#### 5. Redeploy and Verify Cron
+#### 5. Redeploy and Set Up the Cron Trigger
 
-1. **Deployments → Retry deployment** (picks up new env vars and registers the cron trigger)
-2. **Settings → Functions → Cron Triggers** — verify `0 3 * * *` is listed
-3. **Custom domains → Set up domain** → follow DNS instructions
+1. **Deployments → Retry deployment** (picks up new env vars)
+2. **Custom domains → Set up domain** → follow DNS instructions
+3. Set up the scheduled rescan cron trigger:
+   - **Workers & Pages → your project → Settings → Functions → Cron Triggers**
+   - Click **Add Cron Trigger** and enter: `0 3 * * *` (daily at 03:00 UTC)
+   - Save
 
-> The cron trigger only fires in the **deployed** environment. It does not run during `wrangler pages dev`.
+> **Why not wrangler.toml?** The `[triggers]` key is Cloudflare Workers-only and causes a build failure in Pages projects. The cron must be configured through the dashboard instead. The `onScheduled` handler in `functions/api/scan.js` is called automatically once the dashboard trigger is set up.
 
 ---
 
@@ -258,16 +261,20 @@ Browsing checks (fail-open). The IP blocklist continues to work independently.
 
 ### Cron Schedule
 
-The rescan runs daily at `03:00 UTC` by default. To change it, edit `wrangler.toml`:
+The rescan runs daily at `03:00 UTC` by default. To change it:
 
-```toml
-[triggers]
-crons = ["0 3 * * *"]    # daily at 03:00 UTC
-# crons = ["0 */6 * * *"]  # every 6 hours
-# crons = ["0 3 * * 0"]    # weekly on Sunday
+1. Go to **Workers & Pages → your project → Settings → Functions → Cron Triggers**
+2. Delete the existing trigger and add a new one with your preferred expression
+
+Common expressions:
+
+```
+0 3 * * *      daily at 03:00 UTC (default)
+0 */6 * * *    every 6 hours
+0 3 * * 0      weekly on Sunday at 03:00 UTC
 ```
 
-Redeploy after changing the schedule.
+> `[triggers] crons = [...]` in `wrangler.toml` is a **Workers-only** configuration key. Using it in a Pages project causes a build failure. Always configure Pages cron triggers through the dashboard.
 
 ---
 
