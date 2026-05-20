@@ -369,6 +369,20 @@
       border-color: var(--accent);
       color: var(--accent2);
     }
+    .ip-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+    .btn-block-ip {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; padding: 0; border-radius: 4px; cursor: pointer;
+      background: transparent; border: 1px solid rgba(239,68,68,0.25);
+      color: rgba(239,68,68,0.5); font-size: 0.65rem; line-height: 1;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .btn-block-ip:hover { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
     .sb-badge {
       display: inline-flex;
       align-items: center;
@@ -852,8 +866,10 @@
           <td>${esc(hits)}</td>
           <td>${country}</td>
           <td>
-            <span class="ip-chip creator" title="Creator IP">${creatorIp}</span>
-            ${creatorIp !== '—' ? `<button class="bl-unblock-btn" style="margin-left:0.35rem;border-color:rgba(239,68,68,0.3);color:#fca5a5;" onclick="blockIpFromLink(this,'${esc(creatorIp)}')" title="Block this IP">🚫</button>` : ''}
+            <div class="ip-cell">
+              <span class="ip-chip creator" title="Creator IP">${creatorIp}</span>
+              ${creatorIp !== '—' ? `<button class="btn-block-ip" onclick="blockIpFromLink(this,'${esc(creatorIp)}')" title="Block IP ${esc(creatorIp)}">🚫</button>` : ''}
+            </div>
           </td>
           <td>${flags.join('') || '—'}</td>
           <td><button class="delete-btn" data-slug="${btoa(unescape(encodeURIComponent(link.slug)))}" onclick="confirmDelete(this)">Delete</button></td>

@@ -1285,6 +1285,14 @@
     this.value = v;
   });
 
+  // Enter key on URL or slug input triggers shorten
+  urlInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); shortenUrl(); }
+  });
+  document.getElementById('slug-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); shortenUrl(); }
+  });
+
   let currentShortUrl = '';
 
   async function shortenUrl() {

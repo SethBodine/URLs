@@ -22,6 +22,15 @@
  *     safe to double-strip here in case called outside that path)
  */
 
+/**
+ * Threat types to check against.
+ *
+ * MALWARE                      — drive-by downloads, malicious executables
+ * SOCIAL_ENGINEERING           — phishing, deceptive billing ("trick_to_bill"),
+ *                                credential harvesting, fake login pages
+ * UNWANTED_SOFTWARE            — adware, browser hijackers, PUPs
+ * POTENTIALLY_HARMFUL_APPLICATION — PUA/PUP on mobile and desktop
+ */
 const THREAT_TYPES = [
   'MALWARE',
   'SOCIAL_ENGINEERING',
@@ -29,8 +38,34 @@ const THREAT_TYPES = [
   'POTENTIALLY_HARMFUL_APPLICATION',
 ];
 
-const PLATFORM_TYPES     = ['ANY_PLATFORM'];
-const THREAT_ENTRY_TYPES = ['URL'];
+/**
+ * Platform types — send ALL of them so we catch platform-specific threat list
+ * entries (IOS, OSX, ANDROID, etc.).
+ *
+ * ANY_PLATFORM alone only matches entries explicitly listed under ANY_PLATFORM;
+ * it does NOT automatically include entries that are only listed under a
+ * specific platform (e.g. IOS/MALWARE/URL). Sending all platforms ensures full
+ * coverage. The API deduplicates matches server-side.
+ */
+const PLATFORM_TYPES = [
+  'ANY_PLATFORM',
+  'WINDOWS',
+  'LINUX',
+  'OSX',
+  'IOS',
+  'ANDROID',
+  'CHROME',
+];
+
+/**
+ * Threat entry types.
+ *
+ * URL        — web page threats (phishing, malware landing pages, etc.)
+ * EXECUTABLE — binary/download threats (malicious .exe, .apk, .zip, etc.)
+ *              Covers the "Desktop Download Warnings" and "cookie theft"
+ *              categories from Google's test suite.
+ */
+const THREAT_ENTRY_TYPES = ['URL', 'EXECUTABLE'];
 
 const API_ENDPOINT = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
 
