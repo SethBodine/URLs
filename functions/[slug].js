@@ -27,6 +27,11 @@ export async function onRequest(context) {
       return notFoundPage(slug, getRandomConspiracy());
     }
 
+    // ── Deactivated link (flagged by rescan) ──────────────────────────────
+    if (record.deactivated) {
+      return deactivatedPage(record, getRandomConspiracy());
+    }
+
     // ── Record the access asynchronously (non-blocking) ───────────────────
     // We update the KV record with access metadata without blocking the redirect.
     const updatedRecord = appendAccessLog({ ...record }, request);
@@ -224,6 +229,96 @@ function previewInterstitial(record, conspiracy, request) {
       'X-Content-Type-Options':'nosniff',
       'Referrer-Policy':       'no-referrer',
       'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    },
+  });
+}
+
+function deactivatedPage(record, conspiracy) {
+  const safeSlug = escapeHtml(record.slug || '');
+  const threats  = Array.isArray(record.deactivatedThreats) && record.deactivatedThreats.length > 0
+    ? record.deactivatedThreats.map(t => escapeHtml(t)).join(', ')
+    : 'MALWARE / PHISHING';
+  const flaggedAt = record.deactivatedAt
+    ? new Date(record.deactivatedAt).toUTCString()
+    : 'unknown';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <title>Link Deactivated — b0x.nz</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0d; --surface: #1a1a1a; --border: #2a2a2a;
+      --text: #f0f0f0; --muted: #888; --accent: #f59e0b;
+      --danger: #ef4444; --danger-dim: #7f1d1d;
+      --radius: 8px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--danger-dim);
+      border-radius: var(--radius); padding: 2rem; max-width: 480px; width: 100%;
+      text-align: center;
+    }
+    .icon { font-size: 3rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.4rem; color: var(--danger); margin-bottom: 0.5rem; }
+    .slug {
+      display: inline-block; background: #2a1010; color: var(--danger);
+      border: 1px solid var(--danger-dim); border-radius: 4px;
+      padding: 0.2rem 0.6rem; font-family: monospace; font-size: 0.9rem;
+      margin: 0.5rem 0 1rem;
+    }
+    p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 0.75rem; }
+    .detail {
+      background: #1a1010; border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.75rem; font-size: 0.8rem;
+      color: var(--muted); text-align: left; margin: 1rem 0;
+    }
+    .detail strong { color: var(--text); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🚫</div>
+    <h1>Link Deactivated</h1>
+    <span class="slug">/${safeSlug}</span>
+    <p>
+      This shortened link has been <strong>deactivated</strong> because the destination
+      URL was flagged as harmful by Google Safe Browsing during a routine security scan.
+    </p>
+    <div class="detail">
+      <div><strong>Threat type:</strong> ${threats}</div>
+      <div><strong>Flagged at:</strong> ${flaggedAt}</div>
+    </div>
+    <p>
+      If you believe this is an error, contact the site administrator.
+      <br/>
+      <a href="/">← Back to home</a>
+    </p>
+  </div>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 410, // 410 Gone — appropriate for a permanently deactivated resource
+    headers: {
+      'Content-Type':           'text/html; charset=utf-8',
+      'X-Truth':                conspiracy,
+      'Cache-Control':          'no-store, no-cache',
+      'X-Frame-Options':        'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy':        'no-referrer',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
     },
   });
 }

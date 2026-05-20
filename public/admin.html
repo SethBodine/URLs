@@ -418,6 +418,84 @@
     .modal-actions { display: flex; gap: 0.75rem; }
     .modal-actions button { flex: 1; }
 
+    /* ── Deactivated link row ── */
+    tr.deactivated-row td { opacity: 0.6; }
+    tr.deactivated-row td:first-child { border-left: 3px solid var(--red); }
+    .pill.deactivated { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.08); }
+    .pill.blocked-ip  { border-color: #f97316; color: #f97316; background: rgba(249,115,22,0.08); }
+
+    /* ── Rescan button / status ── */
+    .btn-rescan { background: rgba(124,92,252,0.15); border: 1px solid var(--accent); color: var(--accent2); }
+    .btn-rescan:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
+    .rescan-status {
+      font-size: 0.8rem; font-family: var(--mono); color: var(--muted);
+      padding: 0.35rem 0.75rem; border-radius: 6px;
+      background: var(--raised); border: 1px solid var(--border);
+      display: none; align-items: center; gap: 0.5rem;
+    }
+    .rescan-status.show { display: inline-flex; }
+    .rescan-status.ok   { color: var(--green); border-color: rgba(16,185,129,0.3); }
+    .rescan-status.bad  { color: var(--red);   border-color: rgba(239,68,68,0.3); }
+
+    /* ── Blocklist panel ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 2.5rem 0 1rem; gap: 1rem; flex-wrap: wrap;
+    }
+    .section-title {
+      font-family: var(--mono); font-size: 0.9rem; font-weight: 600;
+      color: var(--accent2); letter-spacing: 0.03em;
+    }
+    .blocklist-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; margin-bottom: 2rem;
+    }
+    .blocklist-empty {
+      text-align: center; padding: 2rem 1rem; color: var(--muted); font-size: 0.875rem;
+    }
+    .bl-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .bl-table th {
+      background: var(--raised); padding: 0.65rem 1rem;
+      text-align: left; font-size: 0.7rem; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    .bl-table td {
+      padding: 0.65rem 1rem; border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.8rem; color: var(--text);
+      vertical-align: middle;
+    }
+    .bl-table tr:last-child td { border-bottom: none; }
+    .bl-table tr:hover td { background: var(--raised); }
+    .bl-ip { color: var(--red); font-weight: 600; }
+    .bl-reason {
+      display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem;
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5;
+    }
+    .bl-reason.manual { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); color: #fcd34d; }
+    .bl-unblock-btn {
+      padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 5px; cursor: pointer;
+      background: transparent; border: 1px solid var(--border2); color: var(--muted);
+      font-family: var(--mono); transition: all 0.15s;
+    }
+    .bl-unblock-btn:hover { border-color: var(--green); color: var(--green); }
+    .add-ip-row {
+      display: flex; gap: 0.5rem; align-items: center;
+      padding: 0.75rem 1rem; background: var(--raised); border-top: 1px solid var(--border);
+    }
+    .add-ip-row input {
+      flex: 1; padding: 0.4rem 0.75rem; font-size: 0.8rem; font-family: var(--mono);
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 6px;
+      color: var(--text);
+    }
+    .add-ip-row input:focus { outline: none; border-color: var(--red); }
+    .add-ip-row button {
+      padding: 0.4rem 0.85rem; font-size: 0.8rem; white-space: nowrap;
+      background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+      color: var(--red); border-radius: 6px; cursor: pointer; font-family: var(--mono);
+    }
+    .add-ip-row button:hover { background: rgba(239,68,68,0.3); }
+
     @media (max-width: 768px) {
       .stats { grid-template-columns: 1fr 1fr; }
       .dest-cell { max-width: 140px; }
@@ -465,11 +543,21 @@
         <div class="stat-label">Owner-Linked</div>
         <div class="stat-value" id="owned-count">0</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">Deactivated</div>
+        <div class="stat-value" id="deactivated-count" style="color:var(--red)">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Blocked IPs</div>
+        <div class="stat-value" id="blocked-ip-count" style="color:#f97316">0</div>
+      </div>
     </div>
 
     <div class="controls">
       <input type="text" class="search-input" id="search-input" placeholder="Search slug, url, IP, country…" />
       <button class="btn-ghost" id="btn-select-toggle" onclick="toggleSelectMode()" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;">Select</button>
+      <button class="btn-ghost btn-rescan" id="btn-rescan" onclick="triggerRescan()" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;">⟳ Rescan</button>
+      <span class="rescan-status" id="rescan-status"></span>
       <button class="btn-ghost btn-danger" id="btn-purge" style="width:auto;padding:0.5rem 1.1rem;font-size:0.875rem;" onclick="confirmPurge()">Purge All</button>
     </div>
 
@@ -499,7 +587,36 @@
         </tbody>
       </table>
     </div>
-  </div>
+
+    <!-- ── IP Blocklist Panel ─────────────────────────────────────── -->
+    <div class="section-header">
+      <span class="section-title">🚫 IP Blocklist</span>
+      <button class="btn-ghost" onclick="loadBlocklist()" style="width:auto;padding:0.4rem 0.9rem;font-size:0.8rem;">↻ Refresh</button>
+    </div>
+    <div class="blocklist-wrap">
+      <table class="bl-table">
+        <thead>
+          <tr>
+            <th>IP Address</th>
+            <th>Reason</th>
+            <th>Threats</th>
+            <th>Trigger Slug</th>
+            <th>Added At</th>
+            <th>By</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bl-tbody">
+          <tr><td colspan="7" class="blocklist-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="add-ip-row">
+        <input type="text" id="bl-add-input" placeholder="Block IP manually… (IPv4 or IPv6)" />
+        <button onclick="manualBlockIp()">+ Block IP</button>
+      </div>
+    </div>
+
+  </div><!-- /admin-panel -->
 
   <!-- Confirm Modal -->
   <div id="confirm-modal" class="modal-backdrop">
@@ -608,6 +725,7 @@
       document.getElementById('admin-panel').classList.add('active');
       startInactivityWatch();
       loadLinks();
+      loadBlocklist();
     }
 
     function logout() {
@@ -666,6 +784,7 @@
         const creatorIp  = esc(link.creatorIp || link.ip || '—');
 
         const flags = [];
+        if (link.deactivated) flags.push('<span class="pill deactivated">⛔ deactivated</span>');
         if (link.previewMode) flags.push('<span class="pill preview">preview</span>');
         if (link.ownerHash)   flags.push('<span class="pill owned">owned</span>');
         if (expires)          flags.push('<span class="pill expiry">exp ' + esc(expires) + '</span>');
@@ -698,14 +817,18 @@
           sbHtml = `<span class="sb-badge sb-skipped">— No data</span>`;
         }
 
-        const mainRow = `<tr data-slug="${esc(link.slug)}">
+        const rowClass = link.deactivated ? ' class="deactivated-row"' : '';
+        const mainRow = `<tr data-slug="${esc(link.slug)}"${rowClass}>
           <td class="td-check col-check"><input type="checkbox" class="row-checkbox" onchange="onRowCheck()"></td>
           <td><a href="${shortUrl}" class="slug-link" target="_blank">${esc(link.slug)}</a></td>
           <td><div class="dest-cell" title="${esc(link.url)}">${esc(link.url)}</div></td>
           <td>${esc(created)}</td>
           <td>${esc(hits)}</td>
           <td>${country}</td>
-          <td><span class="ip-chip creator" title="Creator IP">${creatorIp}</span></td>
+          <td>
+            <span class="ip-chip creator" title="Creator IP">${creatorIp}</span>
+            ${creatorIp !== '—' ? `<button class="bl-unblock-btn" style="margin-left:0.35rem;border-color:rgba(239,68,68,0.3);color:#fca5a5;" onclick="blockIpFromLink(this,'${esc(creatorIp)}')" title="Block this IP">🚫</button>` : ''}
+          </td>
           <td>${flags.join('') || '—'}</td>
           <td><button class="delete-btn" data-slug="${btoa(unescape(encodeURIComponent(link.slug)))}" onclick="confirmDelete(this)">Delete</button></td>
         </tr>`;
@@ -720,7 +843,16 @@
             <div class="meta-section">
               <div class="meta-label">Google Safe Browsing</div>
               ${sbHtml}
+              ${link.safeBrowsing?.lastRescannedAt ? `<span style="font-size:0.65rem;color:var(--muted);margin-left:0.75rem;">Last rescan: ${esc(new Date(link.safeBrowsing.lastRescannedAt).toLocaleString())}</span>` : ''}
             </div>
+            ${link.deactivated ? `
+            <div class="meta-section">
+              <div class="meta-label" style="color:var(--red)">⛔ Deactivated</div>
+              <span style="font-size:0.8rem;color:#fca5a5;">
+                Flagged ${link.deactivatedAt ? esc(new Date(link.deactivatedAt).toLocaleString()) : ''} —
+                ${(link.deactivatedThreats||[]).map(t => esc(t.replace(/_/g,' '))).join(', ')}
+              </span>
+            </div>` : ''}
           </td>
         </tr>`;
 
@@ -740,6 +872,9 @@
 
       const owned = allLinks.filter(l => l.ownerHash).length;
       document.getElementById('owned-count').textContent = owned;
+
+      const deactivated = allLinks.filter(l => l.deactivated).length;
+      document.getElementById('deactivated-count').textContent = deactivated;
     }
 
     // ── Select mode ──────────────────────────────────────────────────────────
@@ -860,6 +995,143 @@
       document.getElementById('modal-confirm-btn').onclick = onConfirm;
       document.getElementById('confirm-modal').classList.add('show');
     }
+
+    // ── Rescan ────────────────────────────────────────────────────────────────
+    async function triggerRescan() {
+      const btn = document.getElementById('btn-rescan');
+      const status = document.getElementById('rescan-status');
+      btn.disabled = true;
+      btn.textContent = '⟳ Scanning…';
+      status.className = 'rescan-status show';
+      status.textContent = 'Contacting Safe Browsing API…';
+
+      try {
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + adminKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Rescan failed');
+
+        const s = data.stats;
+        const flagged = s.newlyFlagged || 0;
+        const blocked = s.ipsBlocked  || 0;
+        const scanned = s.scanned     || 0;
+        status.className = 'rescan-status show ' + (flagged > 0 ? 'bad' : 'ok');
+        status.textContent = flagged > 0
+          ? `⚠ ${flagged} flagged, ${blocked} IP(s) blocked (${scanned} scanned)`
+          : `✓ All clean — ${scanned} checked`;
+
+        // Reload to reflect any deactivations
+        await loadLinks();
+        await loadBlocklist();
+      } catch (err) {
+        status.className = 'rescan-status show bad';
+        status.textContent = '✗ ' + (err.message || 'Error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⟳ Rescan';
+        // Auto-hide status after 12s
+        setTimeout(() => { status.className = 'rescan-status'; }, 12000);
+      }
+    }
+
+    // ── IP Blocklist ──────────────────────────────────────────────────────────
+    async function loadBlocklist() {
+      const tbody = document.getElementById('bl-tbody');
+      try {
+        const res = await fetch('/api/blocklist', {
+          headers: { 'Authorization': 'Bearer ' + adminKey },
+        });
+        if (!res.ok) { tbody.innerHTML = `<tr><td colspan="7" class="blocklist-empty">Failed to load (${res.status})</td></tr>`; return; }
+        const data = await res.json();
+        const entries = data.entries || [];
+
+        // Update blocked IP stat card
+        document.getElementById('blocked-ip-count').textContent = entries.length;
+
+        if (!entries.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="blocklist-empty">No IPs blocked</td></tr>';
+          return;
+        }
+        tbody.innerHTML = entries.map(e => {
+          const reasonLabel = e.reason === 'manual' ? 'manual' : e.reason === 'threat_at_creation' ? 'at creation' : 'rescan';
+          const reasonClass = e.reason === 'manual' ? 'manual' : '';
+          const threats = (e.threats||[]).map(t => esc(t.replace(/_/g,' '))).join(', ') || '—';
+          const addedAt = e.addedAt ? new Date(e.addedAt).toLocaleString() : '—';
+          const slug    = e.triggerSlug ? `<a href="/${esc(e.triggerSlug)}" target="_blank" style="color:var(--accent2)">/${esc(e.triggerSlug)}</a>` : '—';
+          return `<tr>
+            <td class="bl-ip">${esc(e.ip)}</td>
+            <td><span class="bl-reason ${reasonClass}">${esc(reasonLabel)}</span></td>
+            <td style="color:#fca5a5;font-size:0.75rem;">${threats}</td>
+            <td>${slug}</td>
+            <td style="color:var(--muted)">${esc(addedAt)}</td>
+            <td style="color:var(--muted)">${esc(e.addedBy||'system')}</td>
+            <td><button class="bl-unblock-btn" onclick="unblockIp('${esc(e.ip)}', this)">Unblock</button></td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="blocklist-empty">Error: ${esc(err.message)}</td></tr>`;
+      }
+    }
+
+    async function unblockIp(ip, btn) {
+      if (!confirm(`Unblock ${ip}?`)) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch('/api/blocklist', {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip }),
+        });
+        if (!res.ok) { alert('Failed to unblock'); btn.disabled = false; btn.textContent = 'Unblock'; return; }
+        await loadBlocklist();
+      } catch { btn.disabled = false; btn.textContent = 'Unblock'; }
+    }
+
+    async function manualBlockIp() {
+      const input = document.getElementById('bl-add-input');
+      const ip = input.value.trim();
+      if (!ip) { input.focus(); return; }
+      try {
+        const res = await fetch('/api/blocklist', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, reason: 'manual' }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Failed to block IP'); return; }
+        input.value = '';
+        await loadBlocklist();
+      } catch (err) { alert(err.message); }
+    }
+
+    async function blockIpFromLink(btn, ip) {
+      if (!confirm(`Block IP ${ip}? They will be silently blocked from creating new links.`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/blocklist', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, reason: 'manual' }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Failed'); btn.disabled = false; return; }
+        btn.textContent = '✓';
+        btn.style.color = 'var(--green)';
+        await loadBlocklist();
+      } catch { btn.disabled = false; }
+    }
+
+    // Load blocklist on panel init
+    document.addEventListener('DOMContentLoaded', () => {
+      // Blocklist loaded after login in the existing login flow
+    });
 
     function closeModal() { document.getElementById('confirm-modal').classList.remove('show'); }
 

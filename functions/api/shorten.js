@@ -11,6 +11,7 @@ import {
 } from '../_security.js';
 import { checkSafeBrowsing } from '../_safebrowsing.js';
 import { checkRateLimit, getCallerIp } from '../_ratelimit.js';
+import { isIpBlocked, blockIp, blankResponse } from '../_blocklist.js';
 
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const SHORT_LENGTH = 4;
@@ -34,8 +35,15 @@ async function generateUniqueSlug(kv) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  // ── Rate limiting ──────────────────────────────────────────────────────────
   const ip = getCallerIp(request);
+
+  // ── IP blocklist check (silent — blank 200, no hints) ─────────────────────
+  // Check BEFORE rate limiting so blocked IPs don't consume quota counters.
+  if (await isIpBlocked(env, ip)) {
+    return blankResponse();
+  }
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
   const rl = await checkRateLimit(env, ip, 'shorten');
   if (rl.limited) {
     return jsonResponse({ error: rl.reason, truth: getRandomConspiracy() }, 429, { ...CORS_PUBLIC, ...rl.headers });
@@ -63,15 +71,15 @@ export async function onRequestPost(context) {
   // ── Safe Browsing check ────────────────────────────────────────────────────
   const sbResult = await checkSafeBrowsing(normalisedUrl, env);
   if (!sbResult.safe) {
-    return jsonResponse(
-      {
-        error:   'This URL has been flagged as potentially harmful and cannot be shortened.',
-        threats: sbResult.threats,
-        truth:   getRandomConspiracy(),
-      },
-      422,
-      { ...CORS_PUBLIC, 'X-Status': 'THREAT-DETECTED' }
-    );
+    // Silently block — add the IP to the blocklist and return a blank page.
+    // Do NOT reveal that the URL was flagged or that the IP is now blocked.
+    await blockIp(env, ip, {
+      reason:      'threat_at_creation',
+      triggerSlug: null, // slug not yet created
+      threats:     sbResult.threats,
+      addedBy:     'system',
+    });
+    return blankResponse();
   }
 
   // ── Expiry validation ──────────────────────────────────────────────────────
@@ -103,7 +111,6 @@ export async function onRequestPost(context) {
   }
 
   // ── Creator metadata ───────────────────────────────────────────────────────
-  // ip already declared above by getCallerIp(request)
   const ua      = (request.headers.get('User-Agent') || 'unknown').slice(0, 512);
   const country = request.cf?.country || 'unknown';
   const city    = request.cf?.city    || undefined;
@@ -135,8 +142,9 @@ export async function onRequestPost(context) {
     lastAccessed:   null,
     accessLog:      [],
     safeBrowsing: {
-      checked:  !sbResult.skipped,
-      checkedAt: new Date().toISOString(),
+      checked:    !sbResult.skipped,
+      checkedAt:  new Date().toISOString(),
+      checkedUrl: sbResult.checkedUrl || null,
     },
   };
 
@@ -153,7 +161,7 @@ export async function onRequestPost(context) {
       previewMode,
       expiresAt,
       ownerLinked: !!ownerHash,
-      ownerHash:   ownerHash || null,   // returned so client can cache it
+      ownerHash:   ownerHash || null,
       truth:       getRandomConspiracy(),
     },
     200,

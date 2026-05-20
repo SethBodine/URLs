@@ -3,6 +3,21 @@ compatibility_date = "2024-09-23"
 pages_build_output_dir = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CRON TRIGGERS — Scheduled Safe Browsing rescan
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs daily at 03:00 UTC. Adjust the cron expression to taste.
+# Cron only fires in deployed (production/preview) environments —
+# it does NOT run during `wrangler pages dev`.
+#
+# To trigger a manual rescan at any time:
+#   curl -X POST https://your-domain/api/scan \
+#        -H "Authorization: Bearer YOUR_ADMIN_KEY"
+#
+# Reference: https://developers.cloudflare.com/pages/functions/scheduling/
+[triggers]
+crons = ["0 3 * * *"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # KV NAMESPACE BINDING
 # ─────────────────────────────────────────────────────────────────────────────
 [[kv_namespaces]]
@@ -29,6 +44,9 @@ RATE_LIMIT_DAILY  = "100"  # max requests per IP per day   (shorten / lookup / m
 # OWNER_HASH_SECRET  — HMAC secret for browser fingerprint derivation (min 32 chars)
 #                      Used to verify X-Owner-Hash headers on /api/mylinks
 #                      wrangler secret put OWNER_HASH_SECRET
+#
+# SAFE_BROWSING_API_KEY — Google Safe Browsing API v4 key (required for rescan)
+#                         wrangler secret put SAFE_BROWSING_API_KEY
 #
 # Both must be set in the Cloudflare Pages dashboard under Settings > Environment Variables
 # as "Encrypted" variables for production.

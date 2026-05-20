@@ -16,9 +16,11 @@ Minimal, secure, zero-cost URL shortener running entirely on Cloudflare Pages + 
 - **My Links** — browser-fingerprint-based self-service: view, edit, and delete your own links
 - **Link expiry** — 30 / 60 / 90 / 180 / 365 days, enforced at KV level (auto-deleted)
 - **Access logging** — IP, user agent, country, city, and timestamp per visit (rolling 50-entry window)
-- **Google Safe Browsing** check at creation time (optional, free)
+- **Google Safe Browsing** — URL canonicalization and threat check at creation time (optional, free)
+- **Scheduled Safe Browsing rescan** — daily cron re-checks all stored links; deactivates flagged ones without deleting them
+- **IP blocklist** — auto-blocks submitter IPs on threat detection (creation or rescan); silent blank response; admin-managed
 - QR codes with custom logo (client-side, no third-party)
-- Admin panel (`/admin.html`) with full stats, search, select mode, and batch delete
+- Admin panel with stats, search, select mode, batch delete, rescan trigger, and IP blocklist management
 - JSON API with single and batch slug lookup
 - OWASP Top 10 mitigations (see Security section)
 - Conspiracy Easter eggs in `X-Truth` response header
@@ -38,16 +40,23 @@ Cloudflare Pages Functions (Workers)
   functions/
     [slug].js        ← redirect handler + access logging + preview interstitial
     _security.js     ← shared validation, auth, owner-hash, access-log helpers
-    _safebrowsing.js ← Google Safe Browsing API integration
+    _safebrowsing.js ← Google Safe Browsing API v4 integration + URL canonicalization
+    _blocklist.js    ← IP blocklist helpers (check, add, remove, list)
+    _rescan.js       ← Safe Browsing rescan logic (shared by cron + HTTP trigger)
+    _ratelimit.js    ← IP-based rate limiting (hourly + daily KV counters)
     _conspiracies.js ← X-Truth header content
     api/
       shorten.js     ← POST /api/shorten
       lookup.js      ← POST /api/lookup
       admin.js       ← GET|DELETE /api/admin
       mylinks.js     ← GET|DELETE|PATCH /api/mylinks
+      scan.js        ← POST /api/scan + scheduled cron handler
+      blocklist.js   ← GET|POST|DELETE /api/blocklist
 
-Cloudflare KV
-  LINKS              ← one key per slug, JSON record (see schema below)
+Cloudflare KV (LINKS namespace)
+  {slug}             ← link record (JSON)
+  rl:{endpoint}:{ip}:{window}  ← rate-limit counters (auto-expire)
+  bl:ip:{ip}         ← blocklist entries (permanent until removed)
 ```
 
 ---
@@ -73,13 +82,42 @@ Cloudflare KV
     { "ip": "5.6.7.8", "ua": "...", "country": "AU", "city": "Sydney", "ts": "2026-04-30T08:15:00.000Z" }
   ],
   "safeBrowsing": {
-    "checked":   true,
-    "checkedAt": "2026-04-29T10:00:00.000Z"
-  }
+    "checked":          true,
+    "checkedAt":        "2026-04-29T10:00:00.000Z",
+    "checkedUrl":       "https://example.com/destination",
+    "lastRescannedAt":  "2026-05-20T03:00:00.000Z",
+    "rescannedClean":   true
+  },
+
+  "_deactivated_fields_present_only_when_flagged": null,
+  "deactivated":        true,
+  "deactivatedAt":      "2026-05-20T03:00:00.000Z",
+  "deactivatedReason":  "safe_browsing_rescan",
+  "deactivatedThreats": ["MALWARE"]
 }
 ```
 
-`accessLog` is a rolling window capped at 50 entries. `accessCount` is the lifetime total (not capped).
+`accessLog` is a rolling window capped at 50 entries. `accessCount` is the lifetime total (not capped).  
+`deactivated` and related fields are only present if the link was flagged post-creation.  
+`checkedUrl` is the canonicalized URL that was actually submitted to the Safe Browsing API.
+
+### Blocklist Entry Schema
+
+Stored under `bl:ip:{normalized-ip}`:
+
+```json
+{
+  "ip":          "1.2.3.4",
+  "addedAt":     "2026-05-20T03:00:00.000Z",
+  "reason":      "threat_at_rescan",
+  "triggerSlug": "ab3x",
+  "threats":     ["MALWARE"],
+  "addedBy":     "system"
+}
+```
+
+`reason` is one of: `threat_at_creation`, `threat_at_rescan`, `manual`.  
+`addedBy` is one of: `system` (auto-blocked), `admin` (manually blocked).
 
 ---
 
@@ -89,14 +127,15 @@ All secrets are set in Cloudflare — **never in source code**.
 
 | Variable | Required | Description |
 |---|---|---|
-| `ADMIN_KEY` | **Yes** | Bearer token for `/api/admin` — minimum 16 characters |
+| `ADMIN_KEY` | **Yes** | Bearer token for `/api/admin`, `/api/scan`, `/api/blocklist` — minimum 16 characters |
 | `OWNER_HASH_SECRET` | **Yes** | HMAC-SHA256 secret for browser fingerprint verification — minimum 32 characters |
-| `SAFE_BROWSING_API_KEY` | Optional | Google Safe Browsing API key — link creation skips check if absent |
-| `KV_NAMESPACE_ID` | Option B only | Production KV namespace ID (build-time injection) |
-| `KV_PREVIEW_NAMESPACE_ID` | Option B only | Preview KV namespace ID (build-time injection) |
+| `SAFE_BROWSING_API_KEY` | Recommended | Google Safe Browsing API key — creation check and rescan both skip if absent |
 
 `ADMIN_KEY` and `OWNER_HASH_SECRET` must be set as **Encrypted** variables in Cloudflare Pages.  
 `SAFE_BROWSING_API_KEY` can be encrypted or plain — it's a Google API key, not a user secret.
+
+Without `SAFE_BROWSING_API_KEY` the blocklist still works for manually-blocked IPs, but no
+automatic threat detection or auto-blocking will occur.
 
 ### Generating secrets
 
@@ -154,10 +193,13 @@ Commit and push.
 | `OWNER_HASH_SECRET` | `openssl rand -hex 32` | ✅ Yes |
 | `SAFE_BROWSING_API_KEY` | *(your Google API key)* | ✅ Yes |
 
-#### 5. Redeploy and Add Domain
+#### 5. Redeploy and Verify Cron
 
-1. **Deployments → Retry deployment** (so the new env vars are picked up)
-2. **Custom domains → Set up domain** → follow DNS instructions
+1. **Deployments → Retry deployment** (picks up new env vars and registers the cron trigger)
+2. **Settings → Functions → Cron Triggers** — verify `0 3 * * *` is listed
+3. **Custom domains → Set up domain** → follow DNS instructions
+
+> The cron trigger only fires in the **deployed** environment. It does not run during `wrangler pages dev`.
 
 ---
 
@@ -196,13 +238,14 @@ Add for both Production and Preview:
 
 #### 5. Deploy and Add Domain
 
-Same as Option A steps 4–5.
+Same as Option A steps 5.
 
 ---
 
-## Google Safe Browsing Setup (Optional)
+## Google Safe Browsing Setup (Optional but Recommended)
 
-Checks every submitted URL against Google's threat lists (malware, phishing, unwanted software) at creation time. Free for up to 10,000 lookups/day.
+Checks every submitted URL against Google's threat lists (malware, phishing, unwanted software)
+at creation time and during scheduled rescans. Free for up to 10,000 lookups/day.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create a project (or use an existing one)
@@ -210,7 +253,21 @@ Checks every submitted URL against Google's threat lists (malware, phishing, unw
 4. **APIs & Services → Credentials → Create Credentials → API Key**
 5. Copy the key → paste as `SAFE_BROWSING_API_KEY` in Cloudflare Pages secrets
 
-If the key is absent or the API is unreachable, link creation proceeds normally (fail-open). Flagged URLs return a `422` error with the threat types.
+If the key is absent or the API is unreachable, link creation and rescans proceed without Safe
+Browsing checks (fail-open). The IP blocklist continues to work independently.
+
+### Cron Schedule
+
+The rescan runs daily at `03:00 UTC` by default. To change it, edit `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["0 3 * * *"]    # daily at 03:00 UTC
+# crons = ["0 */6 * * *"]  # every 6 hours
+# crons = ["0 3 * * 0"]    # weekly on Sunday
+```
+
+Redeploy after changing the schedule.
 
 ---
 
@@ -241,7 +298,16 @@ wrangler pages dev public
 # → http://localhost:8788
 ```
 
-Safe Browsing is skipped locally if `SAFE_BROWSING_API_KEY` is empty — that's fine for development.
+Safe Browsing and the rescan are skipped locally if `SAFE_BROWSING_API_KEY` is empty — that's fine for development. The IP blocklist still works locally via KV.
+
+The cron trigger (`POST /api/scan`) can be called manually during development:
+
+```bash
+curl -X POST http://localhost:8788/api/scan \
+  -H "Authorization: Bearer local-test-admin-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
 
 ---
 
@@ -278,8 +344,6 @@ X-Fingerprint: "<raw browser fingerprint string>"
 X-Owner-Hash:  <HMAC hash returned or cached from previous request>
 ```
 
-> **curl note:** `X-Fingerprint` often contains characters (colons, slashes, equals signs) that break shell quoting. Always wrap its value in double quotes inside the `-H` string, as shown in the curl examples below. The server strips the surrounding quotes automatically.
-
 **Response `200`:**
 ```json
 {
@@ -293,7 +357,10 @@ X-Owner-Hash:  <HMAC hash returned or cached from previous request>
 }
 ```
 
-**Errors:** `400` bad JSON · `409` slug taken · `422` validation or Safe Browsing block
+**Notes:**
+- If the URL is flagged by Safe Browsing, the response is an **empty `200`** with no body — no error is returned (the submitting IP is silently blocked)
+- If the submitting IP is already on the blocklist, the response is also an empty `200`
+- **Errors:** `400` bad JSON · `409` slug taken · `422` validation failure · `429` rate limited
 
 ---
 
@@ -334,44 +401,15 @@ Add `Authorization: Bearer ADMIN_KEY` or owner headers to also receive `creatorI
 
 List all URLs linked to the current browser fingerprint. Requires owner headers.
 
-**Headers:**
-```
-X-Fingerprint: "<raw fingerprint>"
-X-Owner-Hash:  <cached hash>
-```
-
-**Response:**
-```json
-{
-  "links": [
-    {
-      "slug":        "ab3x",
-      "shortUrl":    "https://b0x.nz/ab3x",
-      "url":         "https://example.com",
-      "createdAt":   "2026-04-29T10:00:00.000Z",
-      "previewMode": false,
-      "expiresAt":   null,
-      "expiryDays":  null,
-      "accessCount": 7,
-      "lastAccessed":"2026-04-30T08:00:00.000Z",
-      "accessLog":   [...]
-    }
-  ],
-  "count": 1
-}
-```
-
 ---
 
 ### `DELETE /api/mylinks`
 
-Delete one of your own links. Ownership is verified server-side.
+Delete one of your own links. Returns `403` if you don't own the slug.
 
 ```json
 { "slug": "ab3x" }
 ```
-
-Requires owner headers. Returns `403` if you don't own the slug.
 
 ---
 
@@ -382,8 +420,6 @@ Toggle preview mode on one of your own links.
 ```json
 { "slug": "ab3x", "previewMode": true }
 ```
-
-Requires owner headers.
 
 ---
 
@@ -397,7 +433,7 @@ List all links. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ### `DELETE /api/admin`
 
-Delete one link, a batch of links, or purge everything. Requires `Authorization: Bearer ADMIN_KEY`.
+Delete one link, a batch, or purge everything. Requires `Authorization: Bearer ADMIN_KEY`.
 
 ```json
 { "slug": "ab3x" }
@@ -405,11 +441,82 @@ Delete one link, a batch of links, or purge everything. Requires `Authorization:
 { "purgeAll": true }
 ```
 
-| Body field | Type | Description |
-|---|---|---|
-| `slug` | string | Delete a single link by slug |
-| `slugs` | string[] | Delete up to 500 links in one call — all validated before any are deleted |
-| `purgeAll` | boolean | Wipe every link in the database — irreversible |
+---
+
+### `POST /api/scan`
+
+Trigger a Safe Browsing rescan of all stored links. Requires `Authorization: Bearer ADMIN_KEY`.
+
+**Request (optional):**
+```json
+{ "forceAll": true }
+```
+
+`forceAll: true` re-checks links that are already deactivated (default: skipped).
+
+**Response:**
+```json
+{
+  "success": true,
+  "stats": {
+    "startedAt":    "2026-05-20T03:00:00.000Z",
+    "completedAt":  "2026-05-20T03:00:04.231Z",
+    "scanned":      142,
+    "clean":        139,
+    "newlyFlagged": 3,
+    "ipsBlocked":   2,
+    "skipped":      0,
+    "errors":       0,
+    "flaggedSlugs": ["ab3x", "yz9q", "bad1"],
+    "errorSlugs":   []
+  }
+}
+```
+
+---
+
+### `GET /api/blocklist`
+
+List all blocked IPs. Requires `Authorization: Bearer ADMIN_KEY`.
+
+**Response:**
+```json
+{
+  "entries": [
+    {
+      "ip":          "1.2.3.4",
+      "addedAt":     "2026-05-20T03:00:00.000Z",
+      "reason":      "threat_at_rescan",
+      "triggerSlug": "ab3x",
+      "threats":     ["MALWARE"],
+      "addedBy":     "system"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### `POST /api/blocklist`
+
+Manually block an IP. Requires `Authorization: Bearer ADMIN_KEY`.
+
+```json
+{ "ip": "1.2.3.4" }
+```
+
+Accepts both IPv4 and IPv6. Returns `422` if the string is not a valid IP address.
+
+---
+
+### `DELETE /api/blocklist`
+
+Unblock an IP. Requires `Authorization: Bearer ADMIN_KEY`.
+
+```json
+{ "ip": "1.2.3.4" }
+```
 
 ---
 
@@ -426,32 +533,6 @@ curl -X POST https://b0x.nz/api/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","customSlug":"demo","expiryDays":30,"preview":true}'
 
-# Shorten and link to your account (ownership)
-# X-Fingerprint must be wrapped in "..." — it contains special chars that break shell quoting
-# X-Owner-Hash is the value returned in ownerHash from a previous shorten response
-curl -X POST https://b0x.nz/api/shorten \
-  -H "Content-Type: application/json" \
-  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
-  -H 'X-Owner-Hash: <your-owner-hash-here>' \
-  -d '{"url":"https://example.com"}'
-
-# List your links
-curl https://b0x.nz/api/mylinks \
-  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
-  -H 'X-Owner-Hash: <your-owner-hash-here>'
-
-# Delete one of your links
-curl -X DELETE https://b0x.nz/api/mylinks \
-  -H "Content-Type: application/json" \
-  -H 'X-Fingerprint: "<your-fingerprint-here>"' \
-  -H 'X-Owner-Hash: <your-owner-hash-here>' \
-  -d '{"slug":"ab3x"}'
-
-# Preview a slug without visiting it
-curl -X POST https://b0x.nz/api/lookup \
-  -H "Content-Type: application/json" \
-  -d '{"slug":"ab3x"}'
-
 # List all links (admin)
 curl https://b0x.nz/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY"
@@ -462,11 +543,38 @@ curl -X DELETE https://b0x.nz/api/admin \
   -H "Content-Type: application/json" \
   -d '{"slug":"ab3x"}'
 
-# Batch delete links (admin) — single call, up to 500 slugs
-curl -X DELETE https://b0x.nz/api/admin \
+# Trigger a manual rescan (admin)
+curl -X POST https://b0x.nz/api/scan \
   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"slugs":["ab3x","yz9q","my-link"]}'
+  -d '{}'
+
+# Rescan including already-deactivated links
+curl -X POST https://b0x.nz/api/scan \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"forceAll":true}'
+
+# List blocked IPs (admin)
+curl https://b0x.nz/api/blocklist \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY"
+
+# Manually block an IP (admin)
+curl -X POST https://b0x.nz/api/blocklist \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ip":"1.2.3.4"}'
+
+# Unblock an IP (admin)
+curl -X DELETE https://b0x.nz/api/blocklist \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ip":"1.2.3.4"}'
+
+# Preview a slug without visiting it
+curl -X POST https://b0x.nz/api/lookup \
+  -H "Content-Type: application/json" \
+  -d '{"slug":"ab3x"}'
 
 # Check conspiracy header
 curl -sI https://b0x.nz/ab3x | grep x-truth
@@ -493,11 +601,14 @@ curl -sI https://b0x.nz/ab3x | grep x-truth
 
 ### Additional Protections
 
-- **Google Safe Browsing** — checks every URL against malware, phishing, and unwanted software lists at creation time
-- **XSS prevention** — `escapeHtml()` applied to all user-supplied strings before any HTML rendering (fixes original vulnerability in admin panel)
+- **Google Safe Browsing** — URL canonicalization before submission; checks every URL against malware, phishing, and unwanted software lists at creation time and on scheduled rescans
+- **Silent threat blocking** — flagged URLs return an empty `200`, not a descriptive error; the submitting IP is immediately blocked; prevents probing and information leakage
+- **IP blocklist** — permanent KV-backed blocklist; IPv6 normalization closes compressed-notation bypass; blocked IPs get silent `200` responses with no content
+- **Retroactive deactivation** — daily rescan catches URLs added before a threat was listed; deactivated slugs serve `410 Gone` without exposing the destination
+- **XSS prevention** — `escapeHtml()` applied to all user-supplied strings before HTML rendering
 - **Owner hash isolation** — browser fingerprint is HMAC-hashed server-side; raw fingerprint never stored; owners can only see/edit/delete their own links
 - **Access log capped** — rolling window of 50 entries prevents unbounded KV growth on high-traffic links; lifetime `accessCount` is always accurate
-- **KV expiry** — `expirationTtl` set directly on KV entries so Cloudflare auto-purges them; no cron job required
+- **KV expiry** — `expirationTtl` set directly on KV entries so Cloudflare auto-purges them; no cron job required for expiry
 
 ---
 
@@ -507,8 +618,8 @@ curl -sI https://b0x.nz/ab3x | grep x-truth
 |---|---|---|
 | Cloudflare Pages | ∞ requests, 500 builds/month | Static hosting |
 | Cloudflare Workers | 100k requests/day | Functions |
-| Cloudflare KV | 100k reads, 1k writes, 1GB/day | Link storage |
-| Google Safe Browsing | 10,000 lookups/day | Optional |
+| Cloudflare KV | 100k reads, 1k writes, 1GB/day | Link storage + blocklist |
+| Google Safe Browsing | 10,000 lookups/day | Optional — creation + rescan |
 
 **Total: $0** for personal or low-traffic use.
 

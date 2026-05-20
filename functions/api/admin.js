@@ -18,9 +18,9 @@ function unauthorized(request) {
   );
 }
 
-// Rate limit counter keys are prefixed "rl:" — exclude from all link operations
+// Exclude rate-limit keys (rl:) and blocklist keys (bl:ip:) from link operations
 function isLinkKey(name) {
-  return !name.startsWith('rl:');
+  return !name.startsWith('rl:') && !name.startsWith('bl:ip:');
 }
 
 async function getAllLinks(kv) {
