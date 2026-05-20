@@ -1317,13 +1317,27 @@
       }
 
       const res  = await fetch('/api/shorten', { method: 'POST', headers, body: JSON.stringify(body) });
-      const data = await res.json();
+
+      // A blank 200 with no body is a silent block (IP blocklisted or URL flagged by Safe Browsing).
+      // Don't reveal why — reset the form quietly with no error shown.
+      const bodyText = await res.text();
+      if (!bodyText || bodyText.trim() === '') {
+        urlInput.value = 'https://';
+        document.getElementById('slug-input').value = '';
+        return;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(bodyText);
+      } catch {
+        // Unexpected non-JSON — fail quietly
+        urlInput.value = 'https://';
+        document.getElementById('slug-input').value = '';
+        return;
+      }
 
       if (!res.ok) {
-        // Surface Safe Browsing threat types if present
-        if (data.threats && data.threats.length > 0) {
-          throw new Error('⚠ Blocked: ' + data.error + ' (' + data.threats.map(t => t.replace(/_/g,' ').toLowerCase()).join(', ') + ')');
-        }
         throw new Error(data.error || 'Failed to shorten URL');
       }
 

@@ -424,7 +424,19 @@
     .pill.deactivated { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.08); }
     .pill.blocked-ip  { border-color: #f97316; color: #f97316; background: rgba(249,115,22,0.08); }
 
-    /* ── Rescan button / status ── */
+    /* ── API key warning banner ── */
+    .api-warning {
+      display: none; align-items: center; gap: 0.75rem;
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.35);
+      border-radius: var(--radius); padding: 0.75rem 1rem; margin-bottom: 1.5rem;
+      font-size: 0.85rem; color: #fcd34d;
+    }
+    .api-warning.show { display: flex; }
+    .api-warning strong { color: #fbbf24; }
+    .api-warning code {
+      font-family: var(--mono); font-size: 0.8rem;
+      background: rgba(0,0,0,0.3); padding: 0.1rem 0.4rem; border-radius: 3px;
+    }
     .btn-rescan { background: rgba(124,92,252,0.15); border: 1px solid var(--accent); color: var(--accent2); }
     .btn-rescan:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
     .rescan-status {
@@ -525,6 +537,10 @@
         <button class="btn-ghost" onclick="logout()">Logout</button>
       </div>
     </header>
+
+    <div class="api-warning" id="api-key-warning">
+      ⚠️ <span><strong>Safe Browsing API key not configured.</strong> All URL checks are being skipped — malicious links will not be detected. Set <code>SAFE_BROWSING_API_KEY</code> in <strong>Cloudflare Pages → Settings → Environment variables</strong>, then redeploy.</span>
+    </div>
 
     <div class="stats">
       <div class="stat-card">
@@ -804,8 +820,7 @@
         const sb = link.safeBrowsing;
         if (sb) {
           if (!sb.checked) {
-            sbHtml = `<span class="sb-badge sb-skipped">⚪ Not checked</span>
-                      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.2rem;">SAFE_BROWSING_API_KEY not configured</div>`;
+            sbHtml = `<span class="sb-badge sb-skipped">⚪ Skipped — API key not set</span>`;
           } else if (sb.threats && sb.threats.length) {
             sbHtml = `<span class="sb-badge sb-threat">⛔ Threats detected</span>
                       <div class="sb-threats-list">${sb.threats.map(t => esc(t.replace(/_/g,' '))).join(', ')}</div>`;
@@ -815,6 +830,17 @@
           }
         } else {
           sbHtml = `<span class="sb-badge sb-skipped">— No data</span>`;
+        }
+
+        // Last rescan status — distinguish checked vs skipped
+        let rescanHtml = '';
+        if (sb?.lastRescannedAt) {
+          const rescanTs = esc(new Date(sb.lastRescannedAt).toLocaleString());
+          if (sb.rescannedSkipped === true) {
+            rescanHtml = `<span style="font-size:0.65rem;color:var(--muted);margin-left:0.75rem;">Last rescan: ${rescanTs} <em>(skipped — no API key)</em></span>`;
+          } else {
+            rescanHtml = `<span style="font-size:0.65rem;color:var(--muted);margin-left:0.75rem;">Last rescan: ${rescanTs}</span>`;
+          }
         }
 
         const rowClass = link.deactivated ? ' class="deactivated-row"' : '';
@@ -843,7 +869,7 @@
             <div class="meta-section">
               <div class="meta-label">Google Safe Browsing</div>
               ${sbHtml}
-              ${link.safeBrowsing?.lastRescannedAt ? `<span style="font-size:0.65rem;color:var(--muted);margin-left:0.75rem;">Last rescan: ${esc(new Date(link.safeBrowsing.lastRescannedAt).toLocaleString())}</span>` : ''}
+              ${rescanHtml}
             </div>
             ${link.deactivated ? `
             <div class="meta-section">
@@ -1018,13 +1044,24 @@
         if (!res.ok) throw new Error(data.error || 'Rescan failed');
 
         const s = data.stats;
-        const flagged = s.newlyFlagged || 0;
-        const blocked = s.ipsBlocked  || 0;
-        const scanned = s.scanned     || 0;
-        status.className = 'rescan-status show ' + (flagged > 0 ? 'bad' : 'ok');
-        status.textContent = flagged > 0
-          ? `⚠ ${flagged} flagged, ${blocked} IP(s) blocked (${scanned} scanned)`
-          : `✓ All clean — ${scanned} checked`;
+        const flagged   = s.newlyFlagged  || 0;
+        const blocked   = s.ipsBlocked    || 0;
+        const scanned   = s.scanned       || 0;
+        const noKey     = !!s.apiKeyMissing;
+
+        // Show/hide the global API key warning banner
+        document.getElementById('api-key-warning').classList.toggle('show', noKey);
+
+        if (noKey) {
+          status.className = 'rescan-status show bad';
+          status.textContent = '⚠ API key not set — 0 URLs checked';
+        } else if (flagged > 0) {
+          status.className = 'rescan-status show bad';
+          status.textContent = `⚠ ${flagged} flagged, ${blocked} IP(s) blocked (${scanned} scanned)`;
+        } else {
+          status.className = 'rescan-status show ok';
+          status.textContent = `✓ All clean — ${scanned} checked`;
+        }
 
         // Reload to reflect any deactivations
         await loadLinks();
@@ -1035,7 +1072,7 @@
       } finally {
         btn.disabled = false;
         btn.textContent = '⟳ Rescan';
-        // Auto-hide status after 12s
+        // Auto-hide status after 12s (but leave the API warning banner)
         setTimeout(() => { status.className = 'rescan-status'; }, 12000);
       }
     }

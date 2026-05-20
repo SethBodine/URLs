@@ -124,6 +124,14 @@ export async function runRescan(env, { forceAll = false } = {}) {
         : {};
 
       if (sbResult.safe) {
+        // Distinguish a genuine clean result from a skipped check (no API key)
+        if (sbResult.skipped) {
+          stats.apiKeyMissing = true;
+          stats.skippedNoKey = (stats.skippedNoKey || 0) + 1;
+          // Don't overwrite audit stamps — record is unchanged
+          return;
+        }
+
         stats.clean++;
         // Update the audit stamp only — no structural change
         const updated = {
@@ -133,6 +141,7 @@ export async function runRescan(env, { forceAll = false } = {}) {
             lastRescannedAt:  checkedAt,
             lastCheckedUrl:   sbResult.checkedUrl || record.safeBrowsing?.checkedUrl || null,
             rescannedClean:   true,
+            rescannedSkipped: false,
           },
         };
         try {

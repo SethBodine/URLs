@@ -62,6 +62,9 @@ export async function onRequestPost(context) {
       {
         success: true,
         stats,
+        warning: stats.apiKeyMissing
+          ? 'SAFE_BROWSING_API_KEY is not configured — no URLs were checked. Set the key in Cloudflare Pages → Settings → Environment variables, then redeploy.'
+          : null,
         truth: getRandomConspiracy(),
       },
       200,
