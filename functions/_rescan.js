@@ -43,6 +43,7 @@ function isLinkKey(name) {
 async function probeApi(apiKey) {
   const params = new URLSearchParams({ key: apiKey });
   params.append('urls', 'https://example.com/');
+  params.append('$alt', 'json');
   const probeUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
   let res;
@@ -77,7 +78,7 @@ async function probeApi(apiKey) {
     return {
       ok: false,
       reason: 'protobuf_response',
-      detail: 'API returned binary protobuf instead of JSON. The Accept: application/json header is missing from the deployed code — the fix has not reached the live worker yet.',
+      detail: 'API returned binary protobuf instead of JSON despite $alt=json query param. The Safe Browsing v5 endpoint may not support this parameter — check API key restrictions or try the v5alpha1 endpoint.',
     };
   }
 
@@ -118,6 +119,7 @@ async function batchCheck(records, env) {
   const params = new URLSearchParams();
   params.append('key', apiKey);
   uniqueUrls.forEach(u => params.append('urls', u));
+  params.append('$alt', 'json');
   const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
   let res;
@@ -149,7 +151,7 @@ async function batchCheck(records, env) {
     // eslint-disable-next-line no-control-regex
     const isProtobuf = /[\u0000-\u0008\u000E-\u001F]/.test(rawText.slice(0, 4));
     const detail = isProtobuf
-      ? 'protobuf_response — Accept: application/json header missing from deployed code'
+      ? 'protobuf_response — API returned binary protobuf despite $alt=json param'
       : `json_parse_error: ${err.message} (first 100 chars: ${rawText.slice(0, 100)})`;
     console.error('[rescan] Batch response parse failed:', detail);
     uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, apiErrorDetail: detail, checkedUrl: url }));

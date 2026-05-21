@@ -76,6 +76,7 @@ export async function checkSafeBrowsing(url, env) {
 
   const params = new URLSearchParams({ key: apiKey });
   params.append('urls', checkedUrl);
+  params.append('$alt', 'json');
   const requestUrl = `${V5_ENDPOINT}?${params.toString()}`;
 
   try {
