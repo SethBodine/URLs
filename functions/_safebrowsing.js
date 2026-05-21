@@ -74,7 +74,9 @@ export async function checkSafeBrowsing(url, env) {
     return { safe: false, threats: ['UNPARSEABLE_URL'], skipped: false, apiError: false, apiStatus: null, checkedUrl: null };
   }
 
-  const requestUrl = `${V5_ENDPOINT}?key=${apiKey}&urls=${encodeURIComponent(checkedUrl)}`;
+  const params = new URLSearchParams({ key: apiKey });
+  params.append('urls', checkedUrl);
+  const requestUrl = `${V5_ENDPOINT}?${params.toString()}`;
 
   try {
     const res = await fetch(requestUrl, {

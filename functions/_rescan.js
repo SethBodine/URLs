@@ -15,7 +15,9 @@
 import { checkSafeBrowsing } from './_safebrowsing.js';
 import { blockIp, isBlocklistKey } from './_blocklist.js';
 
-const BATCH_SIZE = 50; // v5 urls:search limit per request
+const BATCH_SIZE = 10; // Keep GET URL length well within Cloudflare's ~8KB limit.
+                       // At ~200 chars/URL encoded, 10 URLs ≈ 2KB — safe headroom.
+                       // v5 allows up to 50 but that risks exceeding URL limits in practice.
 
 // ─── Key filter ───────────────────────────────────────────────────────────────
 
@@ -48,8 +50,10 @@ async function batchCheck(records, env) {
     return results;
   }
 
-  const params = uniqueUrls.map(u => `urls=${encodeURIComponent(u)}`).join('&');
-  const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?key=${apiKey}&${params}`;
+  const params = new URLSearchParams();
+  params.append('key', apiKey);
+  uniqueUrls.forEach(u => params.append('urls', u));
+  const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
   try {
     const res = await fetch(requestUrl, {
