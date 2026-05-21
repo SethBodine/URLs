@@ -58,7 +58,7 @@ async function batchCheck(records, env) {
   try {
     const res = await fetch(requestUrl, {
       method: 'GET',
-      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)' },
+      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)', 'Accept': 'application/json' },
     });
 
     if (!res.ok) {
