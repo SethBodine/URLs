@@ -124,11 +124,17 @@ export async function runRescan(env, { forceAll = false } = {}) {
         : {};
 
       if (sbResult.safe) {
-        // Distinguish a genuine clean result from a skipped check (no API key)
+        // Key genuinely absent — don't update audit stamps, flag for banner
         if (sbResult.skipped) {
           stats.apiKeyMissing = true;
           stats.skippedNoKey = (stats.skippedNoKey || 0) + 1;
-          // Don't overwrite audit stamps — record is unchanged
+          return;
+        }
+
+        // API call failed (key present but error response) — count separately
+        if (sbResult.apiError) {
+          stats.apiErrors = (stats.apiErrors || 0) + 1;
+          stats.lastApiStatus = sbResult.apiStatus;
           return;
         }
 

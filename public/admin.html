@@ -564,6 +564,9 @@
     <div class="api-warning" id="api-key-warning">
       ⚠️ <span><strong>Safe Browsing API key not configured.</strong> All URL checks are being skipped — malicious links will not be detected. Set <code>SAFE_BROWSING_API_KEY</code> in <strong>Cloudflare Pages → Settings → Environment variables</strong>, then redeploy.</span>
     </div>
+    <div class="api-warning" id="api-error-warning">
+      ⚠️ <span id="api-error-text"><strong>Safe Browsing API calls are failing.</strong> The key is set but the API is returning errors. Check that the <strong>Safe Browsing API</strong> is enabled for this key in <strong>Google Cloud Console → APIs &amp; Services</strong>, then redeploy.</span>
+    </div>
 
     <div class="stats">
       <div class="stat-card">
@@ -1081,9 +1084,15 @@
         const blocked   = s.ipsBlocked    || 0;
         const scanned   = s.scanned       || 0;
         const noKey     = !!s.apiKeyMissing;
+        const apiErr    = !noKey && !!(s.apiErrors);
 
-        // Show/hide the global API key warning banner
+        // Show/hide the correct warning banner
         document.getElementById('api-key-warning').classList.toggle('show', noKey);
+        document.getElementById('api-error-warning').classList.toggle('show', apiErr);
+        if (apiErr && data.warning) {
+          document.getElementById('api-error-text').innerHTML =
+            `<strong>Safe Browsing API calls are failing.</strong> ${esc(data.warning)}`;
+        }
 
         if (noKey) {
           status.className = 'rescan-status show bad';
