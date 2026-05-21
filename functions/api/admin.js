@@ -58,6 +58,72 @@ export async function onRequestGet(context) {
 // ─── POST /api/admin/mylinks — list the caller's own links (owner-hash auth) ──
 // This is handled in a separate file: /api/mylinks.js
 
+// ─── PATCH /api/admin — deactivate or reactivate a link (admin) ──────────────
+export async function onRequestPatch(context) {
+  const { request, env } = context;
+  if (!checkAdminAuth(request, env)) return unauthorized(request);
+
+  const bodyResult = await readJsonBody(request);
+  if (!bodyResult.ok) {
+    return jsonResponse({ error: bodyResult.error, truth: getRandomConspiracy() }, 400, CORS_ADMIN);
+  }
+
+  const { slug, deactivated } = bodyResult.body;
+
+  if (!slug || typeof deactivated !== 'boolean') {
+    return jsonResponse(
+      { error: 'Provide { "slug": "...", "deactivated": true|false }.', truth: getRandomConspiracy() },
+      400, CORS_ADMIN
+    );
+  }
+
+  const sv = validateLookupSlug(slug);
+  if (!sv.ok) {
+    return jsonResponse({ error: sv.error, truth: getRandomConspiracy() }, 422, CORS_ADMIN);
+  }
+
+  try {
+    const record = await env.LINKS.get(sv.slug, { type: 'json' });
+    if (!record) {
+      return jsonResponse({ error: `Slug "${sv.slug}" not found.`, truth: getRandomConspiracy() }, 404, CORS_ADMIN);
+    }
+
+    const now = new Date().toISOString();
+    let updated;
+
+    if (deactivated) {
+      updated = {
+        ...record,
+        deactivated:       true,
+        deactivatedAt:     record.deactivatedAt || now, // preserve original timestamp if already deactivated
+        deactivatedReason: 'manual_admin',
+        deactivatedThreats: record.deactivatedThreats || [],
+      };
+    } else {
+      // Reactivate — remove all deactivation fields
+      const { deactivated: _d, deactivatedAt: _da, deactivatedReason: _dr, deactivatedThreats: _dt, ...rest } = record;
+      updated = {
+        ...rest,
+        reactivatedAt: now,
+      };
+    }
+
+    const kvOptions = record.expiresAt
+      ? { expirationTtl: Math.max(1, Math.floor((new Date(record.expiresAt) - Date.now()) / 1000)) }
+      : {};
+
+    await env.LINKS.put(sv.slug, JSON.stringify(updated), kvOptions);
+
+    return jsonResponse(
+      { success: true, slug: sv.slug, deactivated, truth: getRandomConspiracy() },
+      200, CORS_ADMIN
+    );
+  } catch (err) {
+    console.error('Admin PATCH failed:', err);
+    return jsonResponse({ error: 'Update failed.' }, 500, CORS_ADMIN);
+  }
+}
+
 // ─── DELETE /api/admin — delete one slug or purge all (admin) ────────────────
 export async function onRequestDelete(context) {
   const { request, env } = context;

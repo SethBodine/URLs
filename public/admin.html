@@ -383,6 +383,15 @@
       transition: all 0.15s; flex-shrink: 0;
     }
     .btn-block-ip:hover { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+    .btn-deactivate {
+      padding: 0.2rem 0.55rem; font-size: 0.7rem; border-radius: 4px; cursor: pointer;
+      font-family: var(--mono); border: 1px solid rgba(239,68,68,0.3);
+      background: transparent; color: rgba(239,68,68,0.7); transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-deactivate:hover { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+    .btn-deactivate.reactivate { border-color: rgba(16,185,129,0.3); color: rgba(16,185,129,0.7); }
+    .btn-deactivate.reactivate:hover { background: rgba(16,185,129,0.15); border-color: var(--green); color: var(--green); }
+    .btn-deactivate:disabled { opacity: 0.4; cursor: not-allowed; }
     .sb-badge {
       display: inline-flex;
       align-items: center;
@@ -872,7 +881,15 @@
             </div>
           </td>
           <td>${flags.join('') || '—'}</td>
-          <td><button class="delete-btn" data-slug="${btoa(unescape(encodeURIComponent(link.slug)))}" onclick="confirmDelete(this)">Delete</button></td>
+          <td>
+            <div style="display:flex;gap:0.4rem;align-items:center;">
+              ${link.deactivated
+                ? `<button class="btn-deactivate reactivate" onclick="toggleDeactivate('${esc(link.slug)}', false, this)">↺ Restore</button>`
+                : `<button class="btn-deactivate" onclick="toggleDeactivate('${esc(link.slug)}', true, this)">Deactivate</button>`
+              }
+              <button class="delete-btn" data-slug="${btoa(unescape(encodeURIComponent(link.slug)))}" onclick="confirmDelete(this)">Delete</button>
+            </div>
+          </td>
         </tr>`;
 
         const metaRow = `<tr class="meta-row">
@@ -1178,7 +1195,41 @@
         btn.textContent = '✓';
         btn.style.color = 'var(--green)';
         await loadBlocklist();
+        // Scroll to blocklist panel and briefly highlight it so the user sees the update
+        const panel = document.querySelector('.blocklist-wrap');
+        if (panel) {
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          panel.style.transition = 'box-shadow 0.2s';
+          panel.style.boxShadow = '0 0 0 2px rgba(239,68,68,0.5)';
+          setTimeout(() => { panel.style.boxShadow = ''; }, 1200);
+        }
       } catch { btn.disabled = false; }
+    }
+
+    async function toggleDeactivate(slug, deactivate, btn) {
+      const label = deactivate ? 'Deactivate' : 'Restore';
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, deactivated: deactivate }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || `${label} failed`);
+          btn.disabled = false;
+          btn.textContent = label;
+          return;
+        }
+        // Reload the links table to reflect the change
+        await loadLinks();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = label;
+      }
     }
 
     // Load blocklist on panel init
