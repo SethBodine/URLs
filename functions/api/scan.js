@@ -49,15 +49,19 @@ export async function onRequestPost(context) {
     );
   }
 
-  // Optional body: { forceAll: true }
+  // Optional body: { forceAll: true, slugs: ["ab3x", "yz9q"] }
   let forceAll = false;
+  let slugs    = undefined;
   const bodyResult = await readJsonBody(request).catch(() => ({ ok: false }));
-  if (bodyResult.ok && bodyResult.body?.forceAll === true) {
-    forceAll = true;
+  if (bodyResult.ok) {
+    if (bodyResult.body?.forceAll === true) forceAll = true;
+    if (Array.isArray(bodyResult.body?.slugs) && bodyResult.body.slugs.length > 0) {
+      slugs = bodyResult.body.slugs.filter(s => typeof s === 'string' && s.length > 0);
+    }
   }
 
   try {
-    const stats = await runRescan(env, { forceAll });
+    const stats = await runRescan(env, { forceAll, slugs });
 
     const warning = stats.apiKeyMissing
       ? 'SAFE_BROWSING_API_KEY is not configured — no URLs were checked. Set the key in Cloudflare Pages → Settings → Environment variables, then redeploy.'

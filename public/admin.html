@@ -292,6 +292,10 @@
       color: var(--muted);
     }
     .select-bar strong { color: var(--text); }
+    .select-bar button { padding: 0.35rem 0.9rem; font-size: 0.8rem; border-radius: 6px; cursor: pointer; font-family: var(--mono); }
+    #btn-rescan-selected { background: rgba(124,92,252,0.15); border: 1px solid var(--accent); color: var(--accent2); }
+    #btn-rescan-selected:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
+    #btn-rescan-selected:disabled { opacity: 0.4; cursor: not-allowed; }
     #btn-delete-selected {
       margin-left: auto;
       padding: 0.35rem 1rem;
@@ -606,6 +610,7 @@
     <!-- Select-mode action bar (hidden until select mode active) -->
     <div class="select-bar" id="select-bar" style="display:none;">
       <span id="select-summary">0 selected</span>
+      <button id="btn-rescan-selected" disabled onclick="rescanSelected()">⟳ Rescan 0</button>
       <button id="btn-delete-selected" disabled onclick="confirmDeleteSelected()">Delete 0</button>
     </div>
 
@@ -989,9 +994,12 @@
         n === 0
           ? (isSearch ? '<strong>Search active</strong> — check rows to select' : 'Check rows to select')
           : `<strong>${n}</strong> selected${isSearch ? ' (from search results)' : ''}`;
-      const btn = document.getElementById('btn-delete-selected');
-      btn.disabled = n === 0;
-      btn.textContent = n === 0 ? 'Delete' : `Delete ${n}`;
+      const deleteBtn = document.getElementById('btn-delete-selected');
+      deleteBtn.disabled = n === 0;
+      deleteBtn.textContent = n === 0 ? 'Delete' : `Delete ${n}`;
+      const rescanBtn = document.getElementById('btn-rescan-selected');
+      rescanBtn.disabled = n === 0;
+      rescanBtn.textContent = n === 0 ? '⟳ Rescan' : `⟳ Rescan ${n}`;
     }
 
     function confirmDeleteSelected() {
@@ -1119,7 +1127,61 @@
       }
     }
 
-    // ── IP Blocklist ──────────────────────────────────────────────────────────
+    // ── Rescan selected slugs ─────────────────────────────────────────────────
+    async function rescanSelected() {
+      const slugs = getCheckedSlugs();
+      if (!slugs.length) return;
+
+      const btn = document.getElementById('btn-rescan-selected');
+      const status = document.getElementById('rescan-status');
+      btn.disabled = true;
+      btn.textContent = '⟳ Scanning…';
+      status.className = 'rescan-status show';
+      status.textContent = `Checking ${slugs.length} link${slugs.length > 1 ? 's' : ''}…`;
+
+      try {
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slugs }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Rescan failed');
+
+        const s = data.stats;
+        const flagged = s.newlyFlagged || 0;
+        const blocked = s.ipsBlocked  || 0;
+        const scanned = s.scanned     || 0;
+        const noKey   = !!s.apiKeyMissing;
+        const apiErr  = !noKey && !!(s.apiErrors);
+
+        document.getElementById('api-key-warning').classList.toggle('show', noKey);
+        document.getElementById('api-error-warning').classList.toggle('show', apiErr);
+
+        if (noKey) {
+          status.className = 'rescan-status show bad';
+          status.textContent = '⚠ API key not set — 0 URLs checked';
+        } else if (flagged > 0) {
+          status.className = 'rescan-status show bad';
+          status.textContent = `⚠ ${flagged} flagged, ${blocked} IP(s) blocked (${scanned} scanned)`;
+        } else {
+          status.className = 'rescan-status show ok';
+          status.textContent = `✓ All clean — ${scanned} checked`;
+        }
+
+        await loadLinks();
+        await loadBlocklist();
+        // Exit select mode after rescan so the user sees fresh row states
+        toggleSelectMode();
+      } catch (err) {
+        status.className = 'rescan-status show bad';
+        status.textContent = '✗ ' + (err.message || 'Error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = `⟳ Rescan ${slugs.length}`;
+        setTimeout(() => { status.className = 'rescan-status'; }, 12000);
+      }
+    }
     async function loadBlocklist() {
       const tbody = document.getElementById('bl-tbody');
       try {

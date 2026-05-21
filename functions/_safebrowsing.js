@@ -1,73 +1,34 @@
 /**
- * _safebrowsing.js — Google Safe Browsing API v4 Lookup API
+ * _safebrowsing.js — Google Safe Browsing API v5 urls:search
  *
- * We use v4 (not v5alpha1) because:
- *   - v4 FindThreatMatches is stable and production-ready
- *   - v5alpha1 urls:search returns 100% errors in practice
- *   - Stable v5 only offers hash-based lookups (hashes:search) which require
- *     local SHA256 computation — significantly more complex to implement
+ * Uses the stable v5 urls:search endpoint — NOT v5alpha1.
+ * Both have identical request/response format; v5 is the production version.
  *
- * The earlier missed detections (IOS/MALWARE/URL, etc.) were caused by an
- * incomplete platform type list and an invalid EXECUTABLE threat entry type.
- * Both are fixed here. v4 with correct parameters catches the same URLs as
- * the Transparency Report for the threat categories we care about.
+ *   GET https://safebrowsing.googleapis.com/v5/urls:search
+ *     ?key=API_KEY
+ *     &urls[]=https://example.com/path
  *
- * THREAT TYPES
- * ────────────
- *   MALWARE                       drive-by downloads, malicious pages
- *   SOCIAL_ENGINEERING            phishing, deceptive billing, fake logins
- *   UNWANTED_SOFTWARE             adware, browser hijackers
- *   POTENTIALLY_HARMFUL_APPLICATION  PUPs on mobile and desktop
+ * Google handles all URL expression generation and hashing server-side —
+ * no local SHA256 computation or suffix/prefix expansion needed.
+ * The server checks the URL plus its host-suffix/path-prefix expressions
+ * automatically, so coverage is equivalent to hashes:search.
  *
- * PLATFORM TYPES — send ALL to catch platform-specific list entries
- * ────────────────
- *   ANY_PLATFORM alone only matches entries explicitly under that key.
- *   IOS, OSX, ANDROID threats live in separate lists — must be listed.
+ * Response (threat found):
+ *   { "threats": [{ "url": "...", "threatTypes": ["MALWARE"] }], "cacheDuration": "300s" }
  *
- * THREAT ENTRY TYPE
- * ─────────────────
- *   URL only. EXECUTABLE is for the Update API hash-digest workflow, not
- *   the Lookup API — using it here caused malformed requests.
+ * Response (clean):
+ *   { "cacheDuration": "300s" }   ← threats field absent or empty
  *
- * QUOTA
- * ─────
- *   Free tier: 10,000 lookups/day.
- *   Get/manage key: console.cloud.google.com → Safe Browsing API → Credentials
+ * Same API key as v4 — no changes to Cloudflare env vars required.
+ * Free quota: 10,000 lookups/day.
  */
 
-const V4_ENDPOINT = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
-
-const THREAT_TYPES = [
-  'MALWARE',
-  'SOCIAL_ENGINEERING',
-  'UNWANTED_SOFTWARE',
-  'POTENTIALLY_HARMFUL_APPLICATION',
-];
-
-const PLATFORM_TYPES = [
-  'ANY_PLATFORM',
-  'WINDOWS',
-  'LINUX',
-  'OSX',
-  'IOS',
-  'ANDROID',
-  'CHROME',
-];
-
-// URL is the only valid threat entry type for the v4 Lookup API.
-// EXECUTABLE is a hash-digest type for the Update API only.
-const THREAT_ENTRY_TYPES = ['URL'];
-
-// ─── URL canonicalization ─────────────────────────────────────────────────────
+const V5_ENDPOINT = 'https://safebrowsing.googleapis.com/v5/urls:search';
 
 /**
- * Canonicalize a URL before submission per Google's spec:
- *   - Strip fragment (#...) — never indexed in threat lists
- *   - Remove default ports (80/http, 443/https)
- *   - Lowercase hostname
- *   - Strip embedded credentials and control characters
- *
- * Returns the canonical URL string, or null if unparseable.
+ * Canonicalize a URL before submission.
+ * Strips fragment, default ports, credentials, control chars, lowercases host.
+ * Returns canonical URL string, or null if unparseable / non-http(s).
  */
 function canonicalize(rawUrl) {
   // eslint-disable-next-line no-control-regex
@@ -85,8 +46,6 @@ function canonicalize(rawUrl) {
   parsed.hostname = parsed.hostname.toLowerCase();
   return parsed.toString();
 }
-
-// ─── Main export ──────────────────────────────────────────────────────────────
 
 /**
  * checkSafeBrowsing(url, env)
@@ -115,43 +74,30 @@ export async function checkSafeBrowsing(url, env) {
     return { safe: false, threats: ['UNPARSEABLE_URL'], skipped: false, apiError: false, apiStatus: null, checkedUrl: null };
   }
 
-  const body = {
-    client: {
-      clientId:      'b0x-url-shortener',
-      clientVersion: '2.2.0',
-    },
-    threatInfo: {
-      threatTypes:      THREAT_TYPES,
-      platformTypes:    PLATFORM_TYPES,
-      threatEntryTypes: THREAT_ENTRY_TYPES,
-      threatEntries:    [{ url: checkedUrl }],
-    },
-  };
+  const requestUrl = `${V5_ENDPOINT}?key=${apiKey}&urls[]=${encodeURIComponent(checkedUrl)}`;
 
   try {
-    const res = await fetch(`${V4_ENDPOINT}?key=${apiKey}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+    const res = await fetch(requestUrl, {
+      method: 'GET',
+      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)' },
     });
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '(unreadable)');
       console.error(`[safebrowsing] API error ${res.status}:`, errText);
-      // Fail open — key present but API erroring (quota, permissions, etc.)
       return { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, checkedUrl };
     }
 
     const data = await res.json();
 
-    // v4: empty matches object = clean
-    if (!data.matches || data.matches.length === 0) {
+    // v5: threats field absent or empty = clean
+    if (!data.threats || data.threats.length === 0) {
       return { safe: true, threats: [], skipped: false, apiError: false, apiStatus: null, checkedUrl };
     }
 
-    const threats = [...new Set(data.matches.map(m => m.threatType))];
-    console.warn(`[safebrowsing] THREAT detected for ${checkedUrl}:`, threats.join(', '));
-    return { safe: false, threats, skipped: false, apiError: false, apiStatus: null, checkedUrl };
+    const threatTypes = [...new Set(data.threats.flatMap(t => t.threatTypes || []))];
+    console.warn(`[safebrowsing] THREAT detected for ${checkedUrl}:`, threatTypes.join(', '));
+    return { safe: false, threats: threatTypes, skipped: false, apiError: false, apiStatus: null, checkedUrl };
 
   } catch (err) {
     console.error('[safebrowsing] Fetch failed:', err);
