@@ -25,15 +25,80 @@ function isLinkKey(name) {
   return !name.startsWith('rl:') && !isBlocklistKey(name);
 }
 
+// ─── API diagnostic probe ─────────────────────────────────────────────────────
+
+/**
+ * Fire a minimal single-URL probe to the Safe Browsing API and return
+ * a plain-English diagnosis. Called once before the main rescan loop so
+ * any configuration problem is surfaced in the scan response immediately,
+ * without having to dig through raw worker logs.
+ *
+ * Uses example.com — guaranteed clean, never flagged — so the probe
+ * itself has no side-effects on stats.
+ *
+ * Returns:
+ *   { ok: true }                              — API is reachable and returning JSON
+ *   { ok: false, reason: string, detail: string }  — specific failure description
+ */
+async function probeApi(apiKey) {
+  const params = new URLSearchParams({ key: apiKey });
+  params.append('urls', 'https://example.com/');
+  const probeUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
+
+  let res;
+  try {
+    res = await fetch(probeUrl, {
+      method: 'GET',
+      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)', 'Accept': 'application/json' },
+    });
+  } catch (err) {
+    return { ok: false, reason: 'network_error', detail: `Fetch threw: ${err.message}` };
+  }
+
+  const rawText = await res.text().catch(() => '(unreadable)');
+
+  if (!res.ok) {
+    // Try to extract a human-readable message from the error body
+    let apiMessage = rawText;
+    try {
+      const parsed = JSON.parse(rawText);
+      apiMessage = parsed?.error?.message || rawText;
+    } catch { /* leave as raw text */ }
+    return {
+      ok: false,
+      reason: `http_${res.status}`,
+      detail: `API returned HTTP ${res.status}: ${apiMessage.slice(0, 300)}`,
+    };
+  }
+
+  // Check we got JSON, not protobuf (protobuf starts with non-printable bytes)
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0008\u000E-\u001F]/.test(rawText.slice(0, 4))) {
+    return {
+      ok: false,
+      reason: 'protobuf_response',
+      detail: 'API returned binary protobuf instead of JSON. The Accept: application/json header is missing from the deployed code — the fix has not reached the live worker yet.',
+    };
+  }
+
+  try {
+    JSON.parse(rawText);
+  } catch {
+    return {
+      ok: false,
+      reason: 'invalid_json',
+      detail: `API returned non-JSON body (first 100 chars): ${rawText.slice(0, 100)}`,
+    };
+  }
+
+  return { ok: true };
+}
+
 // ─── True batch check using v5 multi-URL support ─────────────────────────────
 
 /**
- * Check a batch of up to 50 records in a single v5 API call.
+ * Check a batch of up to BATCH_SIZE records in a single v5 API call.
  * Returns a Map<url, sbResult>.
- *
- * We call checkSafeBrowsing once per unique URL in the batch.
- * The v5 endpoint handles all expression generation server-side,
- * so there's nothing more to do on our end.
  */
 async function batchCheck(records, env) {
   const results = new Map();
@@ -55,43 +120,58 @@ async function batchCheck(records, env) {
   uniqueUrls.forEach(u => params.append('urls', u));
   const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
+  let res;
   try {
-    const res = await fetch(requestUrl, {
+    res = await fetch(requestUrl, {
       method: 'GET',
       headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)', 'Accept': 'application/json' },
     });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '(unreadable)');
-      console.error(`[rescan] Safe Browsing batch error ${res.status}:`, errText);
-      // Fail open — mark all as apiError (not skipped)
-      uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, checkedUrl: url }));
-      return results;
-    }
-
-    const data = await res.json();
-
-    // Build a map of url → threat types from the response
-    const threatMap = new Map();
-    for (const threat of (data.threats || [])) {
-      const existing = threatMap.get(threat.url) || [];
-      threatMap.set(threat.url, [...existing, ...(threat.threatTypes || [])]);
-    }
-
-    // Map each input URL to its result
-    uniqueUrls.forEach(url => {
-      const threats = threatMap.get(url);
-      if (threats && threats.length > 0) {
-        results.set(url, { safe: false, threats: [...new Set(threats)], skipped: false, apiError: false, apiStatus: null, checkedUrl: url });
-      } else {
-        results.set(url, { safe: true, threats: [], skipped: false, apiError: false, apiStatus: null, checkedUrl: url });
-      }
-    });
-
   } catch (err) {
-    console.error('[rescan] Batch fetch failed:', err);
-    uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: null, checkedUrl: url }));
+    console.error('[rescan] Batch fetch network error:', err.message);
+    uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: null, apiErrorDetail: `network_error: ${err.message}`, checkedUrl: url }));
+    return results;
   }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '(unreadable)');
+    console.error(`[rescan] Safe Browsing batch error ${res.status}:`, errText);
+    uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, apiErrorDetail: errText.slice(0, 200), checkedUrl: url }));
+    return results;
+  }
+
+  // Read raw text first so we can detect protobuf before attempting JSON.parse
+  const rawText = await res.text().catch(() => '');
+
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch (err) {
+    // eslint-disable-next-line no-control-regex
+    const isProtobuf = /[\u0000-\u0008\u000E-\u001F]/.test(rawText.slice(0, 4));
+    const detail = isProtobuf
+      ? 'protobuf_response — Accept: application/json header missing from deployed code'
+      : `json_parse_error: ${err.message} (first 100 chars: ${rawText.slice(0, 100)})`;
+    console.error('[rescan] Batch response parse failed:', detail);
+    uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, apiErrorDetail: detail, checkedUrl: url }));
+    return results;
+  }
+
+  // Build a map of url → threat types from the response
+  const threatMap = new Map();
+  for (const threat of (data.threats || [])) {
+    const existing = threatMap.get(threat.url) || [];
+    threatMap.set(threat.url, [...existing, ...(threat.threatTypes || [])]);
+  }
+
+  // Map each input URL to its result
+  uniqueUrls.forEach(url => {
+    const threats = threatMap.get(url);
+    if (threats && threats.length > 0) {
+      results.set(url, { safe: false, threats: [...new Set(threats)], skipped: false, apiError: false, apiStatus: null, checkedUrl: url });
+    } else {
+      results.set(url, { safe: true, threats: [], skipped: false, apiError: false, apiStatus: null, checkedUrl: url });
+    }
+  });
 
   return results;
 }
@@ -114,19 +194,37 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
 
   const stats = {
     startedAt,
-    scanned:      0,
-    skipped:      0,
-    clean:        0,
-    newlyFlagged: 0,
-    ipsBlocked:   0,
-    errors:       0,
-    apiKeyMissing: false,
-    apiErrors:    0,
-    lastApiStatus: null,
-    flaggedSlugs: [],
-    errorSlugs:   [],
-    completedAt:  null,
+    scanned:            0,
+    skipped:            0,
+    clean:              0,
+    newlyFlagged:       0,
+    ipsBlocked:         0,
+    errors:             0,
+    apiKeyMissing:      false,
+    apiErrors:          0,
+    lastApiStatus:      null,
+    lastApiErrorDetail: null,  // human-readable diagnosis from probe or first batch error
+    apiProbe:           null,  // pre-flight probe result: { ok, reason?, detail? }
+    flaggedSlugs:       [],
+    errorSlugs:         [],
+    completedAt:        null,
   };
+
+  // ── 0. Pre-flight API probe (only if key is present) ─────────────────────
+  const apiKey = env.SAFE_BROWSING_API_KEY;
+  if (apiKey && apiKey.length >= 10) {
+    const probe = await probeApi(apiKey);
+    stats.apiProbe = probe;
+    if (!probe.ok) {
+      console.error('[rescan] Pre-flight probe failed:', probe.reason, probe.detail);
+      stats.lastApiErrorDetail = probe.detail;
+      // Don't abort — continue so stats.scanned/skipped are still accurate,
+      // but every URL will come back as apiError from batchCheck.
+    }
+  } else {
+    stats.apiKeyMissing = true;
+    stats.apiProbe = { ok: false, reason: 'no_key', detail: 'SAFE_BROWSING_API_KEY is not set or too short.' };
+  }
 
   // ── 1. Collect records ────────────────────────────────────────────────────
   const allRecords = [];
@@ -193,6 +291,9 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
         if (sbResult.apiError) {
           stats.apiErrors++;
           stats.lastApiStatus = sbResult.apiStatus;
+          if (sbResult.apiErrorDetail && !stats.lastApiErrorDetail) {
+            stats.lastApiErrorDetail = sbResult.apiErrorDetail;
+          }
           return;
         }
 

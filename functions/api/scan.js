@@ -63,10 +63,13 @@ export async function onRequestPost(context) {
   try {
     const stats = await runRescan(env, { forceAll, slugs });
 
+    const probe = stats.apiProbe;
     const warning = stats.apiKeyMissing
       ? 'SAFE_BROWSING_API_KEY is not configured — no URLs were checked. Set the key in Cloudflare Pages → Settings → Environment variables, then redeploy.'
+      : probe && !probe.ok
+      ? `Safe Browsing API pre-flight probe failed (${probe.reason}): ${probe.detail}`
       : stats.apiErrors
-      ? `Safe Browsing API returned errors for ${stats.apiErrors} URL(s) — key is present but calls failed (HTTP ${stats.lastApiStatus || 'unknown'}). Check the Safe Browsing API is enabled in Google Cloud Console for this key.`
+      ? `Safe Browsing API returned errors for ${stats.apiErrors} URL(s) — HTTP ${stats.lastApiStatus || 'unknown'}. Detail: ${stats.lastApiErrorDetail || 'none'}`
       : null;
 
     return jsonResponse(
