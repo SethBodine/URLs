@@ -1,5 +1,5 @@
 name = "link-shortener"
-compatibility_date = "2024-09-23"
+compatibility_date = "2025-08-01"
 pages_build_output_dir = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ RATE_LIMIT_DAILY  = "100"  # max requests per IP per day   (shorten / lookup / m
 #   OWNER_HASH_SECRET     HMAC-SHA256 secret for browser fingerprint verification
 #                         Minimum 32 characters. Encrypt: Yes.
 #
-#   SAFE_BROWSING_API_KEY Google Safe Browsing API v4 key
+#   SAFE_BROWSING_API_KEY Google Safe Browsing API v5 key
 #                         Required for threat checks and scheduled rescan.
 #                         Encrypt: Yes.
 #                         Get one: console.cloud.google.com → Safe Browsing API
