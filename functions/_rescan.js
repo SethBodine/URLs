@@ -48,7 +48,7 @@ async function batchCheck(records, env) {
     return results;
   }
 
-  const params = uniqueUrls.map(u => `urls[]=${encodeURIComponent(u)}`).join('&');
+  const params = uniqueUrls.map(u => `urls=${encodeURIComponent(u)}`).join('&');
   const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?key=${apiKey}&${params}`;
 
   try {

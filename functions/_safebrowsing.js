@@ -6,7 +6,7 @@
  *
  *   GET https://safebrowsing.googleapis.com/v5/urls:search
  *     ?key=API_KEY
- *     &urls[]=https://example.com/path
+ *     &urls=https://example.com/path
  *
  * Google handles all URL expression generation and hashing server-side —
  * no local SHA256 computation or suffix/prefix expansion needed.
@@ -74,7 +74,7 @@ export async function checkSafeBrowsing(url, env) {
     return { safe: false, threats: ['UNPARSEABLE_URL'], skipped: false, apiError: false, apiStatus: null, checkedUrl: null };
   }
 
-  const requestUrl = `${V5_ENDPOINT}?key=${apiKey}&urls[]=${encodeURIComponent(checkedUrl)}`;
+  const requestUrl = `${V5_ENDPOINT}?key=${apiKey}&urls=${encodeURIComponent(checkedUrl)}`;
 
   try {
     const res = await fetch(requestUrl, {
