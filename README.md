@@ -40,7 +40,7 @@ Cloudflare Pages Functions (Workers)
   functions/
     [slug].js        ← redirect handler + access logging + preview interstitial
     _security.js     ← shared validation, auth, owner-hash, access-log helpers
-    _safebrowsing.js ← Google Safe Browsing API v4 integration + URL canonicalization
+    _safebrowsing.js ← Google Safe Browsing API v5 integration, protobuf decoder, URL canonicalization
     _blocklist.js    ← IP blocklist helpers (check, add, remove, list)
     _rescan.js       ← Safe Browsing rescan logic (shared by cron + HTTP trigger)
     _ratelimit.js    ← IP-based rate limiting (hourly + daily KV counters)
@@ -473,6 +473,7 @@ Trigger a Safe Browsing rescan of all stored links. Requires `Authorization: Bea
     "newlyFlagged": 3,
     "ipsBlocked":   2,
     "skipped":      0,
+    "skippedNoKey": 0,
     "errors":       0,
     "flaggedSlugs": ["ab3x", "yz9q", "bad1"],
     "errorSlugs":   []

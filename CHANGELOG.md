@@ -5,7 +5,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2.1.0] — 2026-05-20
+## [2.2.0] — 2026-05-23
+
+### Fixed
+
+#### Safe Browsing — Protobuf response decoding (`functions/_safebrowsing.js`, `functions/_rescan.js`)
+- **Root cause of all missed threat detections:** `$alt=json` was being appended to every Safe Browsing v5 API request. The v5 endpoint does not support this parameter and returns HTTP 400 for any request that includes it. All three call sites (`checkSafeBrowsing`, `probeApi`, `batchCheck`) were silently failing open — treating every URL as clean — because the 400 response triggered the fail-open error path.
+- The v5 API always returns binary protobuf regardless of query parameters. Removed `$alt=json` from all call sites and replaced `res.json()` / `res.text()` with `res.arrayBuffer()` + a new `parseSafeBrowsingProto()` decoder.
+- `parseSafeBrowsingProto()` is an explicit schema-aware protobuf decoder ported from the reference Python implementation in the API quick-reference doc. It decodes the `SearchResponse` wire format directly against the known field layout — field 1 (repeated `Threat`), field 2 (`Duration`) — without relying on generic recursive heuristics that could misinterpret URL strings as nested messages.
+- The initial generic recursive decoder was replaced because URL strings (e.g. `https://malware.example.com`) start with bytes that look like valid protobuf varint tags. The generic approach would decode the URL field as a nested message, discard it as having no URL, and silently report the threat as clean. The schema-aware decoder treats field 1 of every `Threat` message as a UTF-8 string unconditionally.
+- `parseSafeBrowsingProto` is exported from `_safebrowsing.js` and shared by both `_rescan.js` call sites (`probeApi` and `batchCheck`).
+- Removed the `protobuf_response` detection branch from `probeApi` — this dead-end guard existed solely because `$alt=json` was causing binary responses on what should have been error paths; it is no longer reachable.
+- Removed `Accept: application/json` header from all Safe Browsing fetch calls — meaningless for this API.
+
+#### `admin.js` — `purgeAll` deleted count inflated (`functions/api/admin.js`)
+- `deleted` counter was incremented by the total number of KV keys listed (including `rl:` rate-limit and `bl:ip:` blocklist entries) before the `isLinkKey()` filter was applied. The reported deleted count could be significantly higher than the number of links actually removed. Fixed to count only after filtering.
+
+#### `mylinks.js` — unnecessary KV reads on non-link keys (`functions/api/mylinks.js`)
+- The owner links scan was reading every key in the KV namespace — including `rl:` and `bl:ip:` entries — before filtering by `ownerHash`. These keys can never match and the reads were wasted. Added `isLinkKey`-equivalent prefix filter before the `LINKS.get` calls, consistent with the pattern already used in `_rescan.js`.
+
+#### `_rescan.js` — flagged stats incremented before KV write confirmed (`functions/_rescan.js`)
+- `stats.newlyFlagged` and `stats.flaggedSlugs` were incremented before the `env.LINKS.put()` deactivation write. If the KV write failed, the slug would appear in both `flaggedSlugs` (falsely implying deactivation succeeded) and `errorSlugs`. Moved both increments to inside the `try` block after the `put()` resolves successfully.
+
+#### `_rescan.js` — dead import and stale comments
+- Removed unused `checkSafeBrowsing` import — `_rescan.js` performs its own batched fetch and never called this function.
+- Updated `probeApi` JSDoc and file-level header comments that incorrectly described the batch size as 50 (the v5 API maximum) when the actual `BATCH_SIZE` constant is 10 (chosen to respect Cloudflare's ~8KB URL length limit).
+- Updated `probeApi` JSDoc return description from "returning JSON" to "protobuf response is decodable".
+
+#### `_rescan.js` — `skippedNoKey` stat not initialised (`functions/_rescan.js`)
+- `skippedNoKey` was written dynamically with `(stats.skippedNoKey || 0) + 1` but never declared in the `stats` object initialisation, causing the field to be absent from scan responses unless that path was hit. Initialised to `0` alongside all other stat fields.
+
+#### `lookup.js` — unused import (`functions/api/lookup.js`)
+- Removed `CORS_ADMIN` from the `_security.js` import — it was imported but every response in the file uses `CORS_PUBLIC`.
+
+#### `debug-auth.js` — missing security headers on preflight response (`functions/api/debug-auth.js`)
+- `onRequestOptions` was returning `{ ...CORS_PUBLIC }` directly, bypassing `secureHeaders()`. This meant the 204 preflight response was missing all `SECURITY_HEADERS` (CSP, X-Frame-Options, Cache-Control, etc.). Fixed to use `secureHeaders(CORS_PUBLIC)` consistently with every other `onRequestOptions` in the codebase.
+
+### Files Changed
+
+| File | Summary |
+|---|---|
+| `functions/_safebrowsing.js` | Removed `$alt=json`; replaced `res.json()` with `arrayBuffer()` + schema-aware protobuf decoder; export `parseSafeBrowsingProto` |
+| `functions/_rescan.js` | Removed `$alt=json` from `probeApi` and `batchCheck`; use `parseSafeBrowsingProto`; fix stat ordering; fix `skippedNoKey` init; remove dead import; fix comments |
+| `functions/api/admin.js` | Fix `purgeAll` deleted count |
+| `functions/api/mylinks.js` | Filter non-link keys before KV reads in owner scan |
+| `functions/api/lookup.js` | Remove unused `CORS_ADMIN` import |
+| `functions/api/debug-auth.js` | Fix `onRequestOptions` to use `secureHeaders()` |
+| `README.md` | Fix stale v4 reference in architecture diagram; add `skippedNoKey` to scan response example |
+| `CHANGELOG.md` | This entry |
+
+---
+
+
 
 ### Added
 
