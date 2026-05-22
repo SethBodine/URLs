@@ -303,9 +303,6 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
       }
 
       // ── Flagged — deactivate and block creator IP ──────────────────────
-      stats.newlyFlagged++;
-      stats.flaggedSlugs.push(record.slug);
-
       const deactivatedRecord = {
         ...record,
         deactivated:        true,
@@ -324,6 +321,9 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
 
       try {
         await env.LINKS.put(key, JSON.stringify(deactivatedRecord), kvOptions);
+        // Only count as flagged once KV confirms the deactivation was written
+        stats.newlyFlagged++;
+        stats.flaggedSlugs.push(record.slug);
         console.warn(`[rescan] DEACTIVATED /${record.slug} — threats: ${sbResult.threats.join(', ')}`);
       } catch (err) {
         console.error(`[rescan] KV deactivation failed for ${key}:`, err);

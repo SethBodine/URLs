@@ -110,13 +110,16 @@ export async function onRequestGet(context) {
 
   try {
     // Scan all keys to find those belonging to this owner.
+    // Filter out rl: and bl:ip: keys before reading — no point fetching
+    // rate-limit counters or blocklist entries looking for ownerHash.
     // For large deployments a secondary index (ownerHash → [slugs]) would be
     // more efficient, but at this scale a full scan is fine.
     const myLinks = [];
     let cursor;
     do {
       const result = await env.LINKS.list({ cursor, limit: 1000 });
-      await Promise.all(result.keys.map(async (key) => {
+      const linkKeys = result.keys.filter(k => !k.name.startsWith('rl:') && !k.name.startsWith('bl:ip:'));
+      await Promise.all(linkKeys.map(async (key) => {
         const data = await env.LINKS.get(key.name, { type: 'json' });
         if (data && data.ownerHash === ownerHash) {
           myLinks.push(ownerView(data, baseUrl));
