@@ -2,17 +2,17 @@
  * _rescan.js — Safe Browsing rescan logic
  *
  * Supports full rescan (all links) or targeted rescan (specific slugs only).
- * URLs are batched in groups of 50 — the v5 urls:search limit per request —
+ * URLs are batched in groups of 10 — well within Cloudflare's ~8KB URL limit —
  * rather than the old fan-out of one request per URL. This dramatically
  * reduces API quota consumption when rescanning large link sets.
  *
  * Batch math:
- *   - v5 allows up to 50 URLs per GET request
- *   - 1,000 links = 20 API calls (vs 1,000 calls with the old approach)
- *   - Free quota: 10,000 lookups/day → supports up to 500,000 links/day
+ *   - v5 allows up to 50 URLs per GET request; we use 10 to stay within URL length limits
+ *   - 1,000 links = 100 API calls (vs 1,000 calls with the old approach)
+ *   - Free quota: 10,000 lookups/day → supports up to 100,000 links/day
  */
 
-import { checkSafeBrowsing } from './_safebrowsing.js';
+import { parseSafeBrowsingProto } from './_safebrowsing.js';
 import { blockIp, isBlocklistKey } from './_blocklist.js';
 
 const BATCH_SIZE = 10; // Keep GET URL length well within Cloudflare's ~8KB limit.
@@ -37,33 +37,30 @@ function isLinkKey(name) {
  * itself has no side-effects on stats.
  *
  * Returns:
- *   { ok: true }                              — API is reachable and returning JSON
+ *   { ok: true }                              — API is reachable and protobuf response is decodable
  *   { ok: false, reason: string, detail: string }  — specific failure description
  */
 async function probeApi(apiKey) {
   const params = new URLSearchParams({ key: apiKey });
   params.append('urls', 'https://example.com/');
-  params.append('$alt', 'json');
   const probeUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
   let res;
   try {
     res = await fetch(probeUrl, {
       method: 'GET',
-      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)', 'Accept': 'application/json' },
+      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)' },
     });
   } catch (err) {
     return { ok: false, reason: 'network_error', detail: `Fetch threw: ${err.message}` };
   }
 
-  const rawText = await res.text().catch(() => '(unreadable)');
-
   if (!res.ok) {
-    // Try to extract a human-readable message from the error body
-    let apiMessage = rawText;
+    const errText = await res.text().catch(() => '(unreadable)');
+    let apiMessage = errText;
     try {
-      const parsed = JSON.parse(rawText);
-      apiMessage = parsed?.error?.message || rawText;
+      const parsed = JSON.parse(errText);
+      apiMessage = parsed?.error?.message || errText;
     } catch { /* leave as raw text */ }
     return {
       ok: false,
@@ -72,23 +69,14 @@ async function probeApi(apiKey) {
     };
   }
 
-  // Check we got JSON, not protobuf (protobuf starts with non-printable bytes)
-  // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u0008\u000E-\u001F]/.test(rawText.slice(0, 4))) {
-    return {
-      ok: false,
-      reason: 'protobuf_response',
-      detail: 'API returned binary protobuf instead of JSON despite $alt=json query param. The Safe Browsing v5 endpoint may not support this parameter — check API key restrictions or try the v5alpha1 endpoint.',
-    };
-  }
-
   try {
-    JSON.parse(rawText);
-  } catch {
+    const buffer = await res.arrayBuffer();
+    parseSafeBrowsingProto(buffer); // throws if malformed
+  } catch (err) {
     return {
       ok: false,
-      reason: 'invalid_json',
-      detail: `API returned non-JSON body (first 100 chars): ${rawText.slice(0, 100)}`,
+      reason: 'parse_error',
+      detail: `Failed to decode protobuf response: ${err.message}`,
     };
   }
 
@@ -119,14 +107,13 @@ async function batchCheck(records, env) {
   const params = new URLSearchParams();
   params.append('key', apiKey);
   uniqueUrls.forEach(u => params.append('urls', u));
-  params.append('$alt', 'json');
   const requestUrl = `https://safebrowsing.googleapis.com/v5/urls:search?${params.toString()}`;
 
   let res;
   try {
     res = await fetch(requestUrl, {
       method: 'GET',
-      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)', 'Accept': 'application/json' },
+      headers: { 'User-Agent': 'b0x-url-shortener/2.2 (Safe Browsing v5)' },
     });
   } catch (err) {
     console.error('[rescan] Batch fetch network error:', err.message);
@@ -141,19 +128,13 @@ async function batchCheck(records, env) {
     return results;
   }
 
-  // Read raw text first so we can detect protobuf before attempting JSON.parse
-  const rawText = await res.text().catch(() => '');
-
   let data;
   try {
-    data = JSON.parse(rawText);
+    const buffer = await res.arrayBuffer();
+    data = parseSafeBrowsingProto(buffer);
   } catch (err) {
-    // eslint-disable-next-line no-control-regex
-    const isProtobuf = /[\u0000-\u0008\u000E-\u001F]/.test(rawText.slice(0, 4));
-    const detail = isProtobuf
-      ? 'protobuf_response — API returned binary protobuf despite $alt=json param'
-      : `json_parse_error: ${err.message} (first 100 chars: ${rawText.slice(0, 100)})`;
-    console.error('[rescan] Batch response parse failed:', detail);
+    const detail = `protobuf_parse_error: ${err.message}`;
+    console.error('[rescan] Batch response decode failed:', detail);
     uniqueUrls.forEach(url => results.set(url, { safe: true, threats: [], skipped: false, apiError: true, apiStatus: res.status, apiErrorDetail: detail, checkedUrl: url }));
     return results;
   }
@@ -209,6 +190,7 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
     apiProbe:           null,  // pre-flight probe result: { ok, reason?, detail? }
     flaggedSlugs:       [],
     errorSlugs:         [],
+    skippedNoKey:       0,
     completedAt:        null,
   };
 
@@ -262,7 +244,7 @@ export async function runRescan(env, { forceAll = false, slugs } = {}) {
     return stats;
   }
 
-  // ── 3. Batch check in groups of 50 (v5 API limit) ────────────────────────
+  // ── 3. Batch check in groups of BATCH_SIZE (10 — stays within Cloudflare URL limits) ──
   const checkedAt = new Date().toISOString();
 
   for (let i = 0; i < toScan.length; i += BATCH_SIZE) {

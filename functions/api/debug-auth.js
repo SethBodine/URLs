@@ -35,5 +35,5 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestOptions() {
-  return new Response(null, { status: 204, headers: { ...CORS_PUBLIC } });
+  return new Response(null, { status: 204, headers: secureHeaders(CORS_PUBLIC) });
 }

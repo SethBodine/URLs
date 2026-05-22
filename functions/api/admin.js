@@ -141,8 +141,9 @@ export async function onRequestDelete(context) {
       let cursor, deleted = 0;
       do {
         const result = await env.LINKS.list({ cursor, limit: 1000 });
-        await Promise.all(result.keys.filter(k => isLinkKey(k.name)).map(k => env.LINKS.delete(k.name)));
-        deleted += result.keys.length;
+        const linkKeys = result.keys.filter(k => isLinkKey(k.name));
+        await Promise.all(linkKeys.map(k => env.LINKS.delete(k.name)));
+        deleted += linkKeys.length;
         cursor = result.cursor;
         if (result.list_complete) break;
       } while (cursor);

@@ -3,7 +3,6 @@ import {
   jsonResponse,
   secureHeaders,
   CORS_PUBLIC,
-  CORS_ADMIN,
   checkAdminAuth,
   getVerifiedOwnerHash,
   validateLookupSlug,
