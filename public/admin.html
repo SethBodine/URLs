@@ -386,7 +386,13 @@
       color: rgba(239,68,68,0.5); font-size: 0.65rem; line-height: 1;
       transition: all 0.15s; flex-shrink: 0;
     }
-    .btn-block-ip:hover { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+    .btn-block-ip:hover:not(.already-blocked) { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+    .btn-block-ip.already-blocked {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-color: var(--border2);
+      color: var(--muted);
+    }
     .btn-deactivate {
       padding: 0.2rem 0.55rem; font-size: 0.7rem; border-radius: 4px; cursor: pointer;
       font-family: var(--mono); border: 1px solid rgba(239,68,68,0.3);
@@ -711,6 +717,7 @@
 
     let adminKey  = sessionStorage.getItem(SESSION_KEY) || '';
     let allLinks  = [];
+    let blockedIps = new Set(); // tracks currently blocked IPs — used to grey out block buttons
     let inactivityTimer = null;
 
     // ── Inactivity logout ────────────────────────────────────────────────────
@@ -885,7 +892,15 @@
           <td>
             <div class="ip-cell">
               <span class="ip-chip creator" title="Creator IP">${creatorIp}</span>
-              ${creatorIp !== '—' ? `<button class="btn-block-ip" onclick="blockIpFromLink(this,'${esc(creatorIp)}')" title="Block IP ${esc(creatorIp)}">🚫</button>` : ''}
+              ${creatorIp !== '—' ? (() => {
+                const isBlocked = blockedIps.has(creatorIp);
+                return `<button
+                  class="btn-block-ip${isBlocked ? ' already-blocked' : ''}"
+                  onclick="${isBlocked ? '' : `blockIpFromLink(this,'${esc(creatorIp)}')`}"
+                  title="${isBlocked ? `${esc(creatorIp)} is already blocked` : `Block IP ${esc(creatorIp)}`}"
+                  ${isBlocked ? 'disabled' : ''}
+                >🚫</button>`;
+              })() : ''}
             </div>
           </td>
           <td>${flags.join('') || '—'}</td>
@@ -1192,29 +1207,45 @@
         const data = await res.json();
         const entries = data.entries || [];
 
+        // Keep blockedIps in sync — used to grey out block buttons in the links table
+        blockedIps = new Set(entries.map(e => e.ip));
+
         // Update blocked IP stat card
         document.getElementById('blocked-ip-count').textContent = entries.length;
 
         if (!entries.length) {
           tbody.innerHTML = '<tr><td colspan="7" class="blocklist-empty">No IPs blocked</td></tr>';
-          return;
+        } else {
+          tbody.innerHTML = entries.map(e => {
+            const reasonLabel = e.reason === 'manual' ? 'manual' : e.reason === 'threat_at_creation' ? 'at creation' : 'rescan';
+            const reasonClass = e.reason === 'manual' ? 'manual' : '';
+            const threats = (e.threats||[]).map(t => esc(t.replace(/_/g,' '))).join(', ') || '—';
+            const addedAt = e.addedAt ? new Date(e.addedAt).toLocaleString() : '—';
+            const slug    = e.triggerSlug ? `<a href="/${esc(e.triggerSlug)}" target="_blank" style="color:var(--accent2)">/${esc(e.triggerSlug)}</a>` : '—';
+            return `<tr>
+              <td class="bl-ip">${esc(e.ip)}</td>
+              <td><span class="bl-reason ${reasonClass}">${esc(reasonLabel)}</span></td>
+              <td style="color:#fca5a5;font-size:0.75rem;">${threats}</td>
+              <td>${slug}</td>
+              <td style="color:var(--muted)">${esc(addedAt)}</td>
+              <td style="color:var(--muted)">${esc(e.addedBy||'system')}</td>
+              <td><button class="bl-unblock-btn" onclick="unblockIp('${esc(e.ip)}', this)">Unblock</button></td>
+            </tr>`;
+          }).join('');
         }
-        tbody.innerHTML = entries.map(e => {
-          const reasonLabel = e.reason === 'manual' ? 'manual' : e.reason === 'threat_at_creation' ? 'at creation' : 'rescan';
-          const reasonClass = e.reason === 'manual' ? 'manual' : '';
-          const threats = (e.threats||[]).map(t => esc(t.replace(/_/g,' '))).join(', ') || '—';
-          const addedAt = e.addedAt ? new Date(e.addedAt).toLocaleString() : '—';
-          const slug    = e.triggerSlug ? `<a href="/${esc(e.triggerSlug)}" target="_blank" style="color:var(--accent2)">/${esc(e.triggerSlug)}</a>` : '—';
-          return `<tr>
-            <td class="bl-ip">${esc(e.ip)}</td>
-            <td><span class="bl-reason ${reasonClass}">${esc(reasonLabel)}</span></td>
-            <td style="color:#fca5a5;font-size:0.75rem;">${threats}</td>
-            <td>${slug}</td>
-            <td style="color:var(--muted)">${esc(addedAt)}</td>
-            <td style="color:var(--muted)">${esc(e.addedBy||'system')}</td>
-            <td><button class="bl-unblock-btn" onclick="unblockIp('${esc(e.ip)}', this)">Unblock</button></td>
-          </tr>`;
-        }).join('');
+
+        // Re-render link rows so block buttons reflect the updated blockedIps set
+        // (only if links are already loaded — avoids a flash on first page load)
+        if (allLinks.length) {
+          const q = document.getElementById('search-input').value.trim().toLowerCase();
+          renderLinks(q ? allLinks.filter(l =>
+            l.slug.toLowerCase().includes(q) ||
+            l.url.toLowerCase().includes(q) ||
+            (l.creatorCountry || l.country || '').toLowerCase().includes(q) ||
+            (l.creatorIp || l.ip || '').toLowerCase().includes(q) ||
+            (Array.isArray(l.accessLog) && l.accessLog.some(e => (e.ip || '').toLowerCase().includes(q)))
+          ) : allLinks);
+        }
       } catch (err) {
         tbody.innerHTML = `<tr><td colspan="7" class="blocklist-empty">Error: ${esc(err.message)}</td></tr>`;
       }
@@ -1263,8 +1294,7 @@
         });
         const data = await res.json();
         if (!res.ok) { alert(data.error || 'Failed'); btn.disabled = false; return; }
-        btn.textContent = '✓';
-        btn.style.color = 'var(--green)';
+        // loadBlocklist repopulates blockedIps and re-renders link rows — block button greys out automatically
         await loadBlocklist();
         // Scroll to blocklist panel and briefly highlight it so the user sees the update
         const panel = document.querySelector('.blocklist-wrap');
