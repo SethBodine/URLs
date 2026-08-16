@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.3.0] — 2026-08-16
+
+### Fixed
+
+#### Admin panel — invalid key briefly rendered the full dashboard (`public/admin.html`)
+- `showPanel()` was called immediately on login submit (and on page load whenever a cached session key existed), before the key had been checked against the server. `loadLinks()` then ran afterward and only *then* discovered the key was invalid, alerting and reloading — but by that point the stats, table headers, and IP blocklist section had already rendered behind the alert.
+- Replaced with `attemptLogin(key, fromSession)`, which calls `GET /api/admin` to verify the key **before** anything is shown. A bad key from the login form now shows an inline error on the login card instead of an `alert()`; a stale cached session key is cleared silently and the user stays on the login screen. `showPanel()` is only ever called after a `200` from the server, and now accepts the already-fetched link list so login doesn't trigger a redundant second request.
+
+#### `GET /api/mylinks` — intermittent `401 Owner verification failed` (`public/index.html`)
+- Root cause: the client fingerprint sent as `X-Fingerprint` was built from `navigator.userAgent`, which includes the browser's exact version string. Routine browser auto-updates (roughly every 2–4 weeks) change that string, which silently changed the derived owner hash and orphaned every link the browser had previously linked. Screen-resolution changes (docking a laptop) and timezone changes (travel) could do the same to the other signals in the mix.
+- Replaced the multi-signal environment fingerprint (UA, language, `hardwareConcurrency`, `deviceMemory`, screen dimensions, color depth, timezone, platform, `cookieEnabled`, canvas rendering) with a single random ID generated once via `crypto.randomUUID()` and stored in `localStorage`. Nothing about a browser update, OS update, or reboot touches `localStorage`, so the key no longer drifts on its own. This also stops relying on canvas fingerprinting, which several privacy-hardened browsers (Firefox, Brave) intentionally randomize per session, and which was very likely a second, independent source of the same symptom.
+- Added a one-time self-healing retry: if a cached `X-Owner-Hash` is rejected with `401`, the client now clears it, re-derives from the current device key via `POST /api/mylinks`, and retries once before surfacing an error — covers residual edge cases (e.g. `OWNER_HASH_SECRET` rotation) without a full page reload.
+- **One-time side effect:** because the raw value being hashed changed shape entirely (a bare UUID vs. the old joined-signal string), every existing owner hash stops matching on deploy — this is expected and is a single occurrence, not a recurrence of the bug being fixed.
+
+### Added
+
+#### Admin panel — bulk expiry and preview toggle for selected links (`public/admin.html`, `functions/api/admin.js`)
+- Select mode's action bar now includes a "Set expiry…" dropdown (same 30/60/90/180/365-day options as link creation, plus "Clear expiry") and `+ Preview` / `− Preview` buttons, applying to every checked row in one request.
+- `PATCH /api/admin` now accepts `{ "slugs": [...] }` (max 500) alongside the existing single-slug `{ "slug": "..." }`, and any combination of `deactivated`, `expiryDays` (`30|60|90|180|365|null`), and `previewMode` in one call — only fields present in the body are touched. The response includes a per-slug `results` array so partial failures in a batch (e.g. a slug deleted mid-flight) are distinguishable from a full failure; the admin UI now surfaces those partial failures in an alert instead of treating any `200` as fully successful.
+- `PATCH /api/admin` was previously undocumented in `README.md` entirely — added full documentation with request/response shapes and curl examples.
+
+#### My Links — manual device key backup/restore (`public/index.html`)
+- The existing "view API credentials" panel gained a "Restore a device key" field: paste a previously copied `X-Fingerprint` value (saved from this or another browser) to reassociate this browser with an existing set of links. Covers cases the stored key alone can't survive — a cleared site data, a browser reinstall, a new profile, or a new machine.
+- Added a hover tooltip on the fingerprint badge (main view) and a persistent notice above the list (My Links view) explaining the device-key change in plain terms, with a link that jumps straight to and focuses the restore field.
+
+### Files Changed
+
+| File | Summary |
+|---|---|
+| `public/admin.html` | Fix login flow to verify key before rendering panel; add bulk expiry/preview UI and handlers; surface partial batch failures |
+| `functions/api/admin.js` | `PATCH /api/admin` now supports `slugs` batch + `expiryDays`/`previewMode` alongside `deactivated`, with per-slug results |
+| `public/index.html` | Replace environment-derived fingerprint with a stored random device key; add 401 self-healing retry on `/api/mylinks`; add device-key restore field, tooltip, and My Links notice |
+| `README.md` | Rename "browser fingerprint" → "device key" throughout; document `PATCH /api/admin` (previously undocumented); add curl examples |
+| `CHANGELOG.md` | This entry |
+
+---
+
 ## [2.2.0] — 2026-05-23
 
 ### Fixed

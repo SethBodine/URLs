@@ -13,14 +13,14 @@ Minimal, secure, zero-cost URL shortener running entirely on Cloudflare Pages + 
 - 4-character auto-generated slugs + optional custom slugs
 - **Preview interstitial** — optional 5-second countdown before redirect, with cancel button
 - **URL preview lookup** — reveal a link's destination without visiting it
-- **My Links** — browser-fingerprint-based self-service: view, edit, and delete your own links
+- **My Links** — device-key-based self-service: view, edit, and delete your own links, without accounts
 - **Link expiry** — 30 / 60 / 90 / 180 / 365 days, enforced at KV level (auto-deleted)
 - **Access logging** — IP, user agent, country, city, and timestamp per visit (rolling 50-entry window)
 - **Google Safe Browsing** — URL canonicalization and threat check at creation time (optional, free)
 - **Scheduled Safe Browsing rescan** — daily cron re-checks all stored links; deactivates flagged ones without deleting them
 - **IP blocklist** — auto-blocks submitter IPs on threat detection (creation or rescan); silent blank response; admin-managed
 - QR codes with custom logo (client-side, no third-party)
-- Admin panel with stats, search, select mode, batch delete, rescan trigger, and IP blocklist management
+- Admin panel with stats, search, select mode, batch delete/rescan/deactivate/expiry/preview-toggle, and IP blocklist management
 - JSON API with single and batch slug lookup
 - OWASP Top 10 mitigations (see Security section)
 - Conspiracy Easter eggs in `X-Truth` response header
@@ -128,7 +128,7 @@ All secrets are set in Cloudflare — **never in source code**.
 | Variable | Required | Description |
 |---|---|---|
 | `ADMIN_KEY` | **Yes** | Bearer token for `/api/admin`, `/api/scan`, `/api/blocklist` — minimum 16 characters |
-| `OWNER_HASH_SECRET` | **Yes** | HMAC-SHA256 secret for browser fingerprint verification — minimum 32 characters |
+| `OWNER_HASH_SECRET` | **Yes** | HMAC-SHA256 secret used to verify each browser's device key — minimum 32 characters |
 | `SAFE_BROWSING_API_KEY` | Recommended | Google Safe Browsing API key — creation check and rescan both skip if absent |
 
 `ADMIN_KEY` and `OWNER_HASH_SECRET` must be set as **Encrypted** variables in Cloudflare Pages.  
@@ -347,8 +347,8 @@ Create a shortened URL.
 
 **Headers (optional — for My Links ownership):**
 ```
-X-Fingerprint: "<raw browser fingerprint string>"
-X-Owner-Hash:  <HMAC hash returned or cached from previous request>
+X-Fingerprint: "<device key — random ID generated once and stored in the browser's localStorage>"
+X-Owner-Hash:  <HMAC hash returned or cached from a previous request>
 ```
 
 **Response `200`:**
@@ -406,7 +406,7 @@ Add `Authorization: Bearer ADMIN_KEY` or owner headers to also receive `creatorI
 
 ### `GET /api/mylinks`
 
-List all URLs linked to the current browser fingerprint. Requires owner headers.
+List all URLs linked to the current browser's device key. Requires owner headers.
 
 ---
 
@@ -435,6 +435,44 @@ Toggle preview mode on one of your own links.
 List all links. Requires `Authorization: Bearer ADMIN_KEY`.
 
 **Response:** `{ "links": [...], "count": 42 }`
+
+---
+
+### `PATCH /api/admin`
+
+Update one link or a batch — deactivate/reactivate, set or clear expiry, and/or toggle the preview interstitial. Requires `Authorization: Bearer ADMIN_KEY`.
+
+Target a single slug with `slug`, or many at once with `slugs` (max 500). Include any combination of `deactivated`, `expiryDays`, and `previewMode` — only the fields present in the body are changed.
+
+```json
+{ "slug": "ab3x", "deactivated": true }
+{ "slugs": ["ab3x", "yz9q"], "expiryDays": 30 }
+{ "slugs": ["ab3x", "yz9q"], "expiryDays": null }
+{ "slugs": ["ab3x", "yz9q"], "previewMode": true }
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `slug` / `slugs` | string / string[] | One of the two is required. `slugs` accepts up to 500. |
+| `deactivated` | boolean | `true` deactivates (serves `410 Gone`); `false` reactivates |
+| `expiryDays` | number \| null | One of `30, 60, 90, 180, 365` to set; `null` clears expiry entirely |
+| `previewMode` | boolean | Enable/disable the interstitial before redirect |
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "updated": 2,
+  "results": [
+    { "slug": "ab3x", "ok": true },
+    { "slug": "yz9q", "ok": true }
+  ]
+}
+```
+
+If some slugs in a batch fail (e.g. deleted concurrently), the response still returns `200` with `success: false` and the failing entries carry `"ok": false` plus an `error` — check `results` rather than only the HTTP status when patching a batch.
+
+**Errors:** `400` missing/empty target · `422` invalid slug or `expiryDays` value · `401` bad admin key
 
 ---
 
@@ -545,6 +583,18 @@ curl -X POST https://b0x.nz/api/shorten \
 curl https://b0x.nz/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY"
 
+# Set expiry on a batch of links (admin)
+curl -X PATCH https://b0x.nz/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"slugs":["ab3x","yz9q"],"expiryDays":30}'
+
+# Clear expiry + enable preview on a batch (admin)
+curl -X PATCH https://b0x.nz/api/admin \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"slugs":["ab3x","yz9q"],"expiryDays":null,"previewMode":true}'
+
 # Delete a link (admin)
 curl -X DELETE https://b0x.nz/api/admin \
   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
@@ -597,7 +647,7 @@ curl -sI https://b0x.nz/ab3x | grep x-truth
 | Risk | Mitigation |
 |---|---|
 | A01 Broken Access Control | Timing-safe admin key comparison; HMAC-verified owner hash; reserved slug blocklist |
-| A02 Cryptographic Failures | All secrets in Cloudflare encrypted env vars; HMAC-SHA256 for fingerprint; no secrets in source |
+| A02 Cryptographic Failures | All secrets in Cloudflare encrypted env vars; HMAC-SHA256 for the device key; no secrets in source |
 | A03 Injection | Allowlist regex on all slugs; native `URL` API for parsing; `escapeHtml()` on all rendered content; KV keys only from validated slugs |
 | A04 Insecure Design | http/https only; no embedded credentials in URLs; preview interstitial blocks direct redirect |
 | A05 Misconfiguration | Security headers on all responses; CSP via `_headers`; no verbose server errors; admin CORS locked to same-origin |
@@ -614,7 +664,7 @@ curl -sI https://b0x.nz/ab3x | grep x-truth
 - **IP blocklist** — permanent KV-backed blocklist; IPv6 normalization closes compressed-notation bypass; blocked IPs get silent `200` responses with no content
 - **Retroactive deactivation** — daily rescan catches URLs added before a threat was listed; deactivated slugs serve `410 Gone` without exposing the destination
 - **XSS prevention** — `escapeHtml()` applied to all user-supplied strings before HTML rendering
-- **Owner hash isolation** — browser fingerprint is HMAC-hashed server-side; raw fingerprint never stored; owners can only see/edit/delete their own links
+- **Owner hash isolation** — device key is HMAC-hashed server-side; the raw key is never stored server-side; owners can only see/edit/delete their own links
 - **Access log capped** — rolling window of 50 entries prevents unbounded KV growth on high-traffic links; lifetime `accessCount` is always accurate
 - **KV expiry** — `expirationTtl` set directly on KV entries so Cloudflare auto-purges them; no cron job required for expiry
 

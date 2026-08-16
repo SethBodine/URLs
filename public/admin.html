@@ -293,6 +293,22 @@
     }
     .select-bar strong { color: var(--text); }
     .select-bar button { padding: 0.35rem 0.9rem; font-size: 0.8rem; border-radius: 6px; cursor: pointer; font-family: var(--mono); }
+    .bulk-select {
+      padding: 0.35rem 0.6rem; font-size: 0.8rem; font-family: var(--mono);
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 6px;
+      color: var(--text);
+    }
+    .bulk-select:disabled { opacity: 0.4; cursor: not-allowed; }
+    #btn-apply-expiry {
+      background: rgba(124,92,252,0.15); border: 1px solid var(--accent); color: var(--accent2);
+    }
+    #btn-apply-expiry:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
+    #btn-apply-expiry:disabled { opacity: 0.4; cursor: not-allowed; }
+    #btn-enable-preview, #btn-disable-preview {
+      background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.4); color: var(--amber);
+    }
+    #btn-enable-preview:hover:not(:disabled), #btn-disable-preview:hover:not(:disabled) { background: rgba(245,158,11,0.25); }
+    #btn-enable-preview:disabled, #btn-disable-preview:disabled { opacity: 0.4; cursor: not-allowed; }
     #btn-rescan-selected { background: rgba(124,92,252,0.15); border: 1px solid var(--accent); color: var(--accent2); }
     #btn-rescan-selected:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
     #btn-rescan-selected:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -554,6 +570,7 @@
   <div id="auth-wrap" class="auth-wrap">
     <div class="auth-card">
       <h1>admin access</h1>
+      <p id="auth-error" style="display:none;color:var(--red);font-size:0.8125rem;text-align:center;margin-bottom:1rem;"></p>
       <form id="auth-form">
         <input type="password" id="key-input" placeholder="Enter admin key" required autocomplete="off" />
         <button type="submit">Login</button>
@@ -616,6 +633,18 @@
     <!-- Select-mode action bar (hidden until select mode active) -->
     <div class="select-bar" id="select-bar" style="display:none;">
       <span id="select-summary">0 selected</span>
+      <select id="bulk-expiry-select" class="bulk-select" disabled>
+        <option value="">Set expiry…</option>
+        <option value="clear">Clear expiry</option>
+        <option value="30">30 days</option>
+        <option value="60">60 days</option>
+        <option value="90">90 days</option>
+        <option value="180">180 days</option>
+        <option value="365">365 days</option>
+      </select>
+      <button id="btn-apply-expiry" disabled onclick="applyBulkExpiry()">Apply</button>
+      <button id="btn-enable-preview" disabled onclick="applyBulkPreview(true)">+ Preview</button>
+      <button id="btn-disable-preview" disabled onclick="applyBulkPreview(false)">− Preview</button>
       <button id="btn-rescan-selected" disabled onclick="rescanSelected()">⟳ Rescan 0</button>
       <button id="btn-delete-selected" disabled onclick="confirmDeleteSelected()">Delete 0</button>
     </div>
@@ -766,19 +795,70 @@
     }
 
     // ── Session ──────────────────────────────────────────────────────────────
-    if (adminKey) showPanel();
+    // The admin panel must never be rendered until the key has actually been
+    // verified against the server — otherwise an invalid/stale key briefly
+    // reveals the full panel behind the "Invalid admin key" alert.
+    if (adminKey) attemptLogin(adminKey, /*fromSession*/ true);
 
     document.getElementById('auth-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const k = document.getElementById('key-input').value.trim();
-      if (k) { adminKey = k; sessionStorage.setItem(SESSION_KEY, k); showPanel(); }
+      if (k) attemptLogin(k, false);
     });
 
-    function showPanel() {
+    async function attemptLogin(key, fromSession) {
+      const form       = document.getElementById('auth-form');
+      const submitBtn  = form?.querySelector('button[type="submit"]');
+      const errorEl    = document.getElementById('auth-error');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying…'; }
+      if (errorEl) errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin', { headers: { 'Authorization': 'Bearer ' + key } });
+        if (!res.ok) {
+          if (fromSession) {
+            // Stale/invalid cached session key — clear it silently, stay on login screen
+            sessionStorage.removeItem(SESSION_KEY);
+            sessionStorage.removeItem(ACTIVITY_KEY);
+            adminKey = '';
+          } else if (errorEl) {
+            errorEl.textContent = res.status === 401 ? 'Invalid admin key.' : 'Login failed — please try again.';
+            errorEl.style.display = 'block';
+          }
+          return;
+        }
+
+        const data = await res.json();
+        adminKey = key;
+        sessionStorage.setItem(SESSION_KEY, key);
+        allLinks = (data.links || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        showPanel(allLinks);
+      } catch {
+        if (!fromSession && errorEl) {
+          errorEl.textContent = 'Could not reach the server — please try again.';
+          errorEl.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Login'; }
+      }
+    }
+
+    function showPanel(preloadedLinks) {
       document.getElementById('auth-wrap').style.display = 'none';
       document.getElementById('admin-panel').classList.add('active');
       startInactivityWatch();
-      loadLinks();
+      if (preloadedLinks) {
+        const q = document.getElementById('search-input').value.trim().toLowerCase();
+        renderLinks(q ? preloadedLinks.filter(l =>
+          l.slug.toLowerCase().includes(q) ||
+          l.url.toLowerCase().includes(q) ||
+          (l.creatorCountry || l.country || '').toLowerCase().includes(q) ||
+          (l.creatorIp || l.ip || '').toLowerCase().includes(q)
+        ) : preloadedLinks);
+        updateStats();
+      } else {
+        loadLinks();
+      }
       loadBlocklist();
     }
 
@@ -1015,6 +1095,81 @@
       const rescanBtn = document.getElementById('btn-rescan-selected');
       rescanBtn.disabled = n === 0;
       rescanBtn.textContent = n === 0 ? '⟳ Rescan' : `⟳ Rescan ${n}`;
+
+      document.getElementById('bulk-expiry-select').disabled = n === 0;
+      const expirySelect = document.getElementById('bulk-expiry-select');
+      document.getElementById('btn-apply-expiry').disabled = n === 0 || !expirySelect.value;
+      document.getElementById('btn-enable-preview').disabled = n === 0;
+      document.getElementById('btn-disable-preview').disabled = n === 0;
+    }
+
+    document.getElementById('bulk-expiry-select').addEventListener('change', () => {
+      const n = getCheckedSlugs().length;
+      document.getElementById('btn-apply-expiry').disabled = n === 0 || !document.getElementById('bulk-expiry-select').value;
+    });
+
+    // ── Bulk expiry / preview (select mode) ─────────────────────────────────────
+    async function applyBulkExpiry() {
+      const slugs = getCheckedSlugs();
+      const select = document.getElementById('bulk-expiry-select');
+      if (!slugs.length || !select.value) return;
+
+      const expiryDays = select.value === 'clear' ? null : parseInt(select.value, 10);
+      const label = select.value === 'clear' ? 'Clear expiry' : `Set expiry to ${select.value} days`;
+
+      const applyBtn = document.getElementById('btn-apply-expiry');
+      applyBtn.disabled = true;
+      applyBtn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slugs, expiryDays }),
+        });
+        const data = await res.json();
+        if (!res.ok && !data.updated) { alert(data.error || `${label} failed`); return; }
+        if (data.results && data.results.some(r => !r.ok)) {
+          const failed = data.results.filter(r => !r.ok).map(r => r.slug);
+          alert(`${label}: ${data.updated} succeeded, but failed for: ${failed.join(', ')}`);
+        }
+        select.value = '';
+        await loadLinks();
+        updateSelectionBar();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply';
+      }
+    }
+
+    async function applyBulkPreview(enable) {
+      const slugs = getCheckedSlugs();
+      if (!slugs.length) return;
+      const label = enable ? '+ Preview' : '− Preview';
+      const btn = document.getElementById(enable ? 'btn-enable-preview' : 'btn-disable-preview');
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slugs, previewMode: enable }),
+        });
+        const data = await res.json();
+        if (!res.ok && !data.updated) { alert(data.error || 'Update failed'); return; }
+        if (data.results && data.results.some(r => !r.ok)) {
+          const failed = data.results.filter(r => !r.ok).map(r => r.slug);
+          alert(`${data.updated} succeeded, but failed for: ${failed.join(', ')}`);
+        }
+        await loadLinks();
+        updateSelectionBar();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
     }
 
     function confirmDeleteSelected() {

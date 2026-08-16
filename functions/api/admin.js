@@ -7,6 +7,7 @@ import {
   checkAdminAuth,
   getVerifiedOwnerHash,
   validateLookupSlug,
+  validateExpiry,
   readJsonBody,
 } from '../_security.js';
 
@@ -58,7 +59,59 @@ export async function onRequestGet(context) {
 // ─── POST /api/admin/mylinks — list the caller's own links (owner-hash auth) ──
 // This is handled in a separate file: /api/mylinks.js
 
-// ─── PATCH /api/admin — deactivate or reactivate a link (admin) ──────────────
+// ─── PATCH /api/admin — deactivate/reactivate, set expiry, or toggle preview ──
+// Supports a single slug ({ slug }) or many ({ slugs: [...] }), for one or more of:
+//   deactivated: true|false
+//   expiryDays:  30|60|90|180|365|null   (null clears expiry)
+//   previewMode: true|false
+// Only fields present in the body are touched — omit a field to leave it unchanged.
+async function applyPatchToRecord(kv, slug, { deactivated, hasExpiry, expiryDays, hasPreview, previewMode }) {
+  const record = await kv.get(slug, { type: 'json' });
+  if (!record) return { slug, ok: false, error: 'not found', status: 404 };
+
+  const now = new Date().toISOString();
+  let updated = record;
+
+  if (typeof deactivated === 'boolean') {
+    if (deactivated) {
+      updated = {
+        ...updated,
+        deactivated:        true,
+        deactivatedAt:      updated.deactivatedAt || now, // preserve original timestamp if already deactivated
+        deactivatedReason:  'manual_admin',
+        deactivatedThreats: updated.deactivatedThreats || [],
+      };
+    } else {
+      // Reactivate — remove all deactivation fields
+      const { deactivated: _d, deactivatedAt: _da, deactivatedReason: _dr, deactivatedThreats: _dt, ...rest } = updated;
+      updated = { ...rest, reactivatedAt: now };
+    }
+  }
+
+  if (hasExpiry) {
+    if (expiryDays === null) {
+      updated = { ...updated, expiryDays: null, expiresAt: null };
+    } else {
+      updated = {
+        ...updated,
+        expiryDays,
+        expiresAt: new Date(Date.now() + expiryDays * 86_400_000).toISOString(),
+      };
+    }
+  }
+
+  if (hasPreview) {
+    updated = { ...updated, previewMode };
+  }
+
+  const kvOptions = updated.expiresAt
+    ? { expirationTtl: Math.max(1, Math.floor((new Date(updated.expiresAt) - Date.now()) / 1000)) }
+    : {};
+
+  await kv.put(slug, JSON.stringify(updated), kvOptions);
+  return { slug, ok: true };
+}
+
 export async function onRequestPatch(context) {
   const { request, env } = context;
   if (!checkAdminAuth(request, env)) return unauthorized(request);
@@ -68,55 +121,72 @@ export async function onRequestPatch(context) {
     return jsonResponse({ error: bodyResult.error, truth: getRandomConspiracy() }, 400, CORS_ADMIN);
   }
 
-  const { slug, deactivated } = bodyResult.body;
+  const { slug, slugs, deactivated, previewMode } = bodyResult.body;
+  const hasExpiry  = Object.prototype.hasOwnProperty.call(bodyResult.body, 'expiryDays');
+  const hasPreview = typeof previewMode === 'boolean';
+  const hasDeactivated = typeof deactivated === 'boolean';
 
-  if (!slug || typeof deactivated !== 'boolean') {
+  // Resolve + validate expiry (null is allowed here to mean "clear expiry")
+  let expiryDays = null;
+  if (hasExpiry) {
+    const raw = bodyResult.body.expiryDays;
+    if (raw !== null) {
+      const ev = validateExpiry(raw);
+      if (!ev.ok || ev.days === null) {
+        return jsonResponse({ error: ev.error || 'expiryDays must be one of 30, 60, 90, 180, 365, or null to clear.', truth: getRandomConspiracy() }, 422, CORS_ADMIN);
+      }
+      expiryDays = ev.days;
+    }
+  }
+
+  if (!hasDeactivated && !hasExpiry && !hasPreview) {
     return jsonResponse(
-      { error: 'Provide { "slug": "...", "deactivated": true|false }.', truth: getRandomConspiracy() },
+      { error: 'Provide at least one of "deactivated", "expiryDays", or "previewMode" to update.', truth: getRandomConspiracy() },
       400, CORS_ADMIN
     );
   }
 
-  const sv = validateLookupSlug(slug);
-  if (!sv.ok) {
-    return jsonResponse({ error: sv.error, truth: getRandomConspiracy() }, 422, CORS_ADMIN);
+  // Resolve target slug list
+  let targets;
+  if (Array.isArray(slugs)) {
+    if (slugs.length === 0) return jsonResponse({ error: 'slugs array must not be empty.' }, 400, CORS_ADMIN);
+    if (slugs.length > 500) return jsonResponse({ error: 'Maximum 500 slugs per batch.' }, 400, CORS_ADMIN);
+    const validated = slugs.map(s => validateLookupSlug(s));
+    const invalid = validated.filter(v => !v.ok);
+    if (invalid.length) return jsonResponse({ error: `Invalid slug(s): ${invalid.map(v => v.error).join('; ')}` }, 422, CORS_ADMIN);
+    targets = validated.map(v => v.slug);
+  } else if (slug !== undefined) {
+    const sv = validateLookupSlug(slug);
+    if (!sv.ok) return jsonResponse({ error: sv.error, truth: getRandomConspiracy() }, 422, CORS_ADMIN);
+    targets = [sv.slug];
+  } else {
+    return jsonResponse(
+      { error: 'Provide { "slug": "..." } or { "slugs": [...] }.', truth: getRandomConspiracy() },
+      400, CORS_ADMIN
+    );
   }
 
   try {
-    const record = await env.LINKS.get(sv.slug, { type: 'json' });
-    if (!record) {
-      return jsonResponse({ error: `Slug "${sv.slug}" not found.`, truth: getRandomConspiracy() }, 404, CORS_ADMIN);
-    }
+    const results = await Promise.all(targets.map(s => applyPatchToRecord(env.LINKS, s, {
+      deactivated: hasDeactivated ? deactivated : undefined,
+      hasExpiry, expiryDays,
+      hasPreview, previewMode,
+    })));
 
-    const now = new Date().toISOString();
-    let updated;
-
-    if (deactivated) {
-      updated = {
-        ...record,
-        deactivated:       true,
-        deactivatedAt:     record.deactivatedAt || now, // preserve original timestamp if already deactivated
-        deactivatedReason: 'manual_admin',
-        deactivatedThreats: record.deactivatedThreats || [],
-      };
-    } else {
-      // Reactivate — remove all deactivation fields
-      const { deactivated: _d, deactivatedAt: _da, deactivatedReason: _dr, deactivatedThreats: _dt, ...rest } = record;
-      updated = {
-        ...rest,
-        reactivatedAt: now,
-      };
-    }
-
-    const kvOptions = record.expiresAt
-      ? { expirationTtl: Math.max(1, Math.floor((new Date(record.expiresAt) - Date.now()) / 1000)) }
-      : {};
-
-    await env.LINKS.put(sv.slug, JSON.stringify(updated), kvOptions);
+    const failed = results.filter(r => !r.ok);
+    const status = failed.length === results.length ? (failed[0]?.status || 500) : 200;
 
     return jsonResponse(
-      { success: true, slug: sv.slug, deactivated, truth: getRandomConspiracy() },
-      200, CORS_ADMIN
+      {
+        success: failed.length === 0,
+        updated: results.filter(r => r.ok).length,
+        results,
+        // Back-compat single-slug fields
+        slug: targets.length === 1 ? targets[0] : undefined,
+        deactivated: hasDeactivated ? deactivated : undefined,
+        truth: getRandomConspiracy(),
+      },
+      status, CORS_ADMIN
     );
   } catch (err) {
     console.error('Admin PATCH failed:', err);

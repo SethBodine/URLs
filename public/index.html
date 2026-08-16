@@ -737,6 +737,44 @@
     }
     .fp-field-value.unavailable { color: var(--muted); font-style: italic; }
 
+    .fp-restore-input {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text);
+      background: var(--raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+    }
+    .fp-restore-input:focus { outline: none; border-color: var(--accent); }
+
+    .fp-restore-msg {
+      font-size: 0.68rem;
+      margin-top: 0.35rem;
+      display: none;
+    }
+    .fp-restore-msg.show { display: block; }
+    .fp-restore-msg.ok  { color: var(--green); }
+    .fp-restore-msg.bad { color: var(--red); }
+
+    .mylinks-notice {
+      background: rgba(124,92,252,0.08);
+      border: 1px solid rgba(124,92,252,0.25);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 1.25rem;
+    }
+    .mylinks-notice strong { color: var(--accent2); }
+    .mylinks-notice a {
+      color: var(--accent2);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     .fp-copy-btn {
       flex-shrink: 0;
       width: auto;
@@ -879,6 +917,10 @@
     <!-- ── MY LINKS PANEL ── -->
     <div id="panel-mylinks" class="panel">
       <div class="card">
+        <div class="mylinks-notice">
+          <strong>How this browser is recognized recently changed.</strong>
+          It now uses a random key stored locally in this browser, rather than one built from browser details like version and screen size — so it stays valid across browser updates and reboots, instead of quietly breaking every few weeks. One side effect: if you linked URLs to this browser <em>before</em> the change, this browser looks new to the server and those older links won't appear below. If you saved your previous key, you can paste it back in under <a onclick="openDeviceKeyPanel()">device key settings ↓</a> to restore them — otherwise their short URLs still work as normal, they just won't be listed here anymore.
+        </div>
         <div id="mylinks-status" style="color:var(--muted);font-size:0.875rem;margin-bottom:1rem;">Loading your links…</div>
         <div id="mylinks-list"></div>
       </div>
@@ -1108,14 +1150,14 @@
   <footer>
     <span id="footer-domain"></span> &nbsp;·&nbsp; <a href="./admin.html">Admin</a>
     <br/>
-    <div class="fingerprint-badge" onclick="toggleFpExpand()" title="Click to view API credentials">
+    <div class="fingerprint-badge" onclick="toggleFpExpand()" title="This browser's key recently changed: it's now a random ID stored locally, instead of one built from browser details — so it stays valid across browser updates and reboots. If you linked URLs before this change, this browser may look new to the server. Click to view credentials or restore a saved key.">
       <span class="fp-dot"></span>
       <span id="fp-display">generating fingerprint…</span>
       <span style="font-size:0.6rem;opacity:0.6;">▾</span>
     </div>
     <div class="fp-expand" id="fp-expand">
       <div class="fp-field">
-        <div class="fp-field-label">X-Fingerprint — Raw fingerprint (client-only)</div>
+        <div class="fp-field-label">X-Fingerprint — Device key (stored in this browser)</div>
         <div class="fp-field-row">
           <div class="fp-field-value" id="fp-raw-display">generating…</div>
           <button class="fp-copy-btn" id="fp-raw-copy" onclick="copyFpField('fp-raw-display', this)" disabled>Copy</button>
@@ -1128,7 +1170,15 @@
           <button class="fp-copy-btn" id="fp-hash-copy" onclick="copyFpField('fp-hash-display', this)" disabled>Copy</button>
         </div>
       </div>
-      <div class="fp-note">Use these headers to authenticate API calls as yourself. The hash is derived server-side from your fingerprint — keep both values private.</div>
+      <div class="fp-field">
+        <div class="fp-field-label">Restore a device key</div>
+        <div class="fp-field-row">
+          <input type="text" id="fp-restore-input" class="fp-restore-input" placeholder="Paste a saved X-Fingerprint value…" autocomplete="off" spellcheck="false" />
+          <button class="fp-copy-btn" onclick="restoreDeviceKey()">Restore</button>
+        </div>
+        <div class="fp-restore-msg" id="fp-restore-msg"></div>
+      </div>
+      <div class="fp-note">This key is generated once and stored in this browser — it survives updates and reboots, and doesn't change on its own. It's lost only if this site's storage is cleared, or you switch browsers/profiles/devices. Copy the X-Fingerprint value above somewhere safe, and paste it back here (on this browser or a new one) to restore access to your links.</div>
     </div>
   </footer>
 
@@ -1136,64 +1186,45 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script>
   // ═══════════════════════════════════════════════════════════════
-  // BROWSER FINGERPRINT + OWNER HASH
+  // DEVICE KEY + OWNER HASH
   // ═══════════════════════════════════════════════════════════════
+  //
+  // A URL is "linked to this browser" via a random device key generated
+  // once and stored in localStorage — not a fingerprint derived from browser
+  // environment details (UA, screen size, timezone, etc). Environment
+  // signals like those drift on their own (browser auto-updates change the
+  // UA string every few weeks; plugging in a monitor changes screen size;
+  // travel changes the timezone; privacy-hardened browsers even randomize
+  // canvas output per session) which silently orphaned people's links. A
+  // stored random key has none of that churn — localStorage isn't touched by
+  // updates or reboots, so the key stays valid until the browser's storage
+  // for this site is explicitly cleared, or a different browser/profile/
+  // device is used. For those cases, the key can be copied out and restored
+  // manually (see the "Restore a device key" field below).
 
   const FP_KEY    = 'b0x_fp_' + location.hostname;
   const HASH_KEY  = 'b0x_oh_' + location.hostname;
 
-  let currentFp   = '';  // raw fingerprint string (client-only)
+  let currentFp   = '';  // device key (client-only, persisted in localStorage)
   let currentHash = '';  // HMAC hash returned by server
 
-  async function buildFingerprint() {
-    // Stable signals that don't change per-visit but distinguish browsers
-    const signals = [
-      navigator.userAgent,
-      navigator.language,
-      navigator.hardwareConcurrency,
-      navigator.deviceMemory || '',
-      screen.width + 'x' + screen.height,
-      screen.colorDepth,
-      Intl.DateTimeFormat().resolvedOptions().timeZone,
-      navigator.platform || '',
-      navigator.cookieEnabled,
-    ];
-
-    // Canvas fingerprint — generated once and cached in localStorage so it stays
-    // stable across page loads on all browsers (Android canvas rendering can vary).
-    try {
-      let canvasFp = localStorage.getItem(FP_KEY + '_cvs');
-      if (!canvasFp) {
-        const c = document.createElement('canvas');
-        const ctx = c.getContext('2d');
-        ctx.textBaseline = 'top';
-        ctx.font = '14px Arial';
-        ctx.fillStyle = '#f60';
-        ctx.fillRect(125, 1, 62, 20);
-        ctx.fillStyle = '#069';
-        ctx.fillText('b0x.nz 🔒', 2, 15);
-        ctx.fillStyle = 'rgba(102,204,0,0.7)';
-        ctx.fillText('b0x.nz 🔒', 4, 17);
-        canvasFp = c.toDataURL();
-        localStorage.setItem(FP_KEY + '_cvs', canvasFp);
-      }
-      signals.push(canvasFp);
-    } catch {}
-
-    // Stored UUID for extra stability
-    let uuid = localStorage.getItem(FP_KEY + '_uuid');
-    if (!uuid) {
-      uuid = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36);
-      localStorage.setItem(FP_KEY + '_uuid', uuid);
+  function getOrCreateDeviceKey() {
+    let key = localStorage.getItem(FP_KEY + '_uuid');
+    if (!key) {
+      key = crypto.randomUUID
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+      localStorage.setItem(FP_KEY + '_uuid', key);
     }
-    signals.push(uuid);
+    return key;
+  }
 
-    const raw = signals.join('||');
-
-    // SHA-256 digest client-side (just for display — server re-derives with HMAC secret)
+  async function buildFingerprint() {
+    const raw = getOrCreateDeviceKey();
+    // SHA-256 digest client-side, purely to show a short preview in the UI —
+    // the server independently HMACs the raw key with its own secret.
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
     const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-
     return { raw, preview: hex.slice(0, 12) + '…' };
   }
 
@@ -1525,9 +1556,36 @@
     status.textContent = 'Loading your links…';
 
     try {
-      const res = await fetch('/api/mylinks', {
+      let res = await fetch('/api/mylinks', {
         headers: { 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash },
       });
+
+      // A cached X-Owner-Hash can go stale (e.g. it was derived on a previous
+      // visit before this browser's fingerprint changed). If the server
+      // rejects it, drop the cache and re-derive from the current fingerprint
+      // once before giving up — this is what "My Links" intermittently
+      // failing with a 401 usually comes down to.
+      if (res.status === 401) {
+        localStorage.removeItem(HASH_KEY);
+        currentHash = '';
+        try {
+          const recoverRes = await fetch('/api/mylinks', {
+            method: 'POST',
+            headers: { 'X-Fingerprint': currentFp },
+          });
+          if (recoverRes.ok) {
+            const recoverData = await recoverRes.json();
+            if (recoverData.ownerHash) cacheOwnerHash(recoverData.ownerHash);
+          }
+        } catch { /* non-fatal — fall through */ }
+
+        if (currentHash) {
+          res = await fetch('/api/mylinks', {
+            headers: { 'X-Fingerprint': currentFp, 'X-Owner-Hash': currentHash },
+          });
+        }
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
@@ -1727,6 +1785,15 @@
     chevron.textContent = open ? '▴' : '▾';
   }
 
+  // Used by the "My Links" notice to jump straight to the restore field,
+  // opening the panel first if it isn't already expanded.
+  function openDeviceKeyPanel() {
+    const panel = document.getElementById('fp-expand');
+    if (!panel.classList.contains('open')) toggleFpExpand();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('fp-restore-input')?.focus();
+  }
+
   function copyFpField(id, btn) {
     const text = document.getElementById(id)?.textContent || '';
     navigator.clipboard.writeText(text).then(() => {
@@ -1737,6 +1804,47 @@
       btn.textContent = 'Failed';
       setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
     });
+  }
+
+  // Restores a device key the user saved earlier (e.g. copied from the
+  // X-Fingerprint field before clearing browser data, or on a different
+  // browser/device). Overwrites the locally stored key, drops any cached
+  // owner hash (it was derived from the old key and no longer applies),
+  // and re-initializes so the UI and My Links reflect the restored identity.
+  async function restoreDeviceKey() {
+    const input = document.getElementById('fp-restore-input');
+    const msg   = document.getElementById('fp-restore-msg');
+    const val   = (input.value || '').trim();
+
+    msg.className = 'fp-restore-msg show';
+
+    if (!val) {
+      msg.classList.add('bad');
+      msg.textContent = 'Paste a device key first.';
+      return;
+    }
+    if (val === currentFp) {
+      msg.classList.add('ok');
+      msg.textContent = 'This is already your current device key.';
+      input.value = '';
+      return;
+    }
+
+    localStorage.setItem(FP_KEY + '_uuid', val);
+    localStorage.removeItem(HASH_KEY);
+    currentHash = '';
+    input.value = '';
+
+    await initFingerprint();
+
+    msg.classList.add('ok');
+    msg.textContent = 'Device key restored.';
+
+    // If My Links is the active tab, refresh it under the restored identity
+    const mylinksPanel = document.getElementById('panel-mylinks');
+    if (mylinksPanel && mylinksPanel.classList.contains('active')) {
+      loadMyLinks();
+    }
   }
 
 </script>
