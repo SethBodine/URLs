@@ -127,6 +127,30 @@ export async function getVerifiedOwnerHash(request, env) {
   return diff === 0 ? sentHash : null;
 }
 
+/**
+ * Resolves the owner hash for a *link-creation* request: verifies a paired
+ * X-Owner-Hash + X-Fingerprint the same way getVerifiedOwnerHash does, but
+ * if only X-Fingerprint is present (a brand-new browser with nothing cached
+ * yet — the client's very first "link to my browser" request) it derives and
+ * self-issues a fresh hash instead of rejecting. This mirrors what
+ * /api/mylinks (POST) already does for recovery — deriving a hash from a raw
+ * fingerprint is a pure function of the fingerprint plus the server secret,
+ * so it discloses nothing an already-authenticated client couldn't compute
+ * offline. Only use this for the endpoint that originates a new ownership
+ * link; every other owner-gated endpoint should keep using
+ * getVerifiedOwnerHash so a stray X-Fingerprint alone can't be used to read,
+ * modify, or delete someone else's existing links.
+ */
+export async function resolveOwnerHash(request, env) {
+  const sentHash = (request.headers.get('X-Owner-Hash') || '').trim().replace(/^"+|"+$/g, '').toLowerCase();
+  const rawFp    = (request.headers.get('X-Fingerprint') || '').trim().replace(/^"+|"+$/g, '');
+  if (!rawFp) return null;
+
+  if (sentHash) return getVerifiedOwnerHash(request, env);
+
+  return deriveOwnerHash(rawFp, env);
+}
+
 // ─── URL Validation & Normalisation ──────────────────────────────────────────
 
 const BLOCKED_HOSTNAMES = new Set([

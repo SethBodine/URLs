@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.4.0] — 2026-08-16
+
+### Fixed
+
+#### First link created on a brand-new browser never linked to "My Links" (`functions/_security.js`, `functions/api/shorten.js`)
+- `getVerifiedOwnerHash` required **both** `X-Owner-Hash` and `X-Fingerprint` to be present, returning `null` otherwise. On a brand-new browser there's no cached hash yet, so the very first "link to my browser" request only carries `X-Fingerprint` — the server rejected it outright and created that link with `ownerHash: null`, i.e. genuinely never linked, not just temporarily hidden. Whatever the user did next (e.g. opening the My Links tab, which derives and caches a hash via the existing recovery flow) is why the *second* link would then work.
+- Added `resolveOwnerHash()`: behaves exactly like `getVerifiedOwnerHash` when both headers are sent, but if only `X-Fingerprint` is present it derives and self-issues a fresh hash instead of rejecting — the same trust model `POST /api/mylinks` already uses for recovery (deriving a hash from a fingerprint is a pure function of the fingerprint and the server secret, so it discloses nothing an already-authenticated client couldn't compute itself). `shorten.js` now uses this for the one endpoint that originates new ownership links; every read/mutate endpoint (`mylinks.js`, `lookup.js`, `debug-auth.js`) keeps using the strict `getVerifiedOwnerHash`.
+
+#### Admin panel — three UI bugs in select mode (`public/admin.html`)
+- **Select-bar text wrapping character-by-character** ("Check / rows / to / select" stacking vertically) — `#select-summary` now has `white-space: nowrap`, and `.select-bar` wraps as a whole (`flex-wrap: wrap`) so the summary text stays intact on one line and the controls flow below it as a group on narrow viewports, instead of the label itself fracturing mid-word.
+- **Table content squeezed inward when entering select mode** — the expandable meta-row (Safe Browsing status / access log / etc.) was hardcoded to `colspan="8"`, but the table actually has 9 columns; the leading checkbox column exists in the DOM at all times and is only toggled via CSS (`display:none` outside select mode), and a hidden column still counts toward `colspan`. Once select mode was entered, the checkbox column became visible and the meta-row's `colspan="8"` fell one column short of the table's actual width, squeezing its content. Corrected to `colspan="9"` (also fixed on the "Loading…" and "No links found" placeholder rows, which had the same bug).
+- **Stacked flag pills touching** — `.pill` had `margin-right` but no vertical margin, so pills that wrapped onto a second line (e.g. `preview` + `exp 15/09/2026`) sat flush against each other. Added `margin-bottom` alongside the existing `margin-right`.
+
+### Added
+
+#### Admin panel — relink a link's owner on a user's behalf (`public/admin.html`, `functions/api/admin.js`, `README.md`)
+- Each link's expandable row now has an "Ownership" section: paste the value from the affected user's `X-Fingerprint` (their device key) *or* their `X-Owner-Hash` directly — both are things they can copy from their own "view API credentials" panel and hand you — and click Relink. An "Unlink" button (shown once a link has an owner) clears ownership entirely, behind the existing confirm-modal pattern.
+- `PATCH /api/admin` gained `ownerFingerprint` (derives the hash server-side from a raw device key, same as normal linking) and `ownerHash` (sets a known hash directly, or `null` to unlink) — usable per-slug or across a batch via `slugs`, alongside the existing `deactivated`/`expiryDays`/`previewMode` fields. Documented in `README.md`.
+
+### Files Changed
+
+| File | Summary |
+|---|---|
+| `functions/_security.js` | Add `resolveOwnerHash()` — self-issues a hash from a fingerprint-only request instead of rejecting it |
+| `functions/api/shorten.js` | Use `resolveOwnerHash()` so a browser's first-ever link actually gets linked |
+| `functions/api/admin.js` | `PATCH /api/admin` gains `ownerFingerprint`/`ownerHash` for admin-driven relinking |
+| `public/admin.html` | Fix select-bar text wrap, meta-row `colspan`, stacked-pill spacing; add per-slug relink/unlink UI |
+| `README.md` | Document the new `ownerFingerprint`/`ownerHash` PATCH fields |
+| `CHANGELOG.md` | This entry |
+
+---
+
 ## [2.3.0] — 2026-08-16
 
 ### Fixed

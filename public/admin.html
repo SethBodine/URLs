@@ -257,6 +257,7 @@
       font-size: 0.7rem;
       font-family: var(--mono);
       margin-right: 0.25rem;
+      margin-bottom: 0.25rem;
     }
 
     .pill.preview { border-color: var(--amber); color: var(--amber); }
@@ -283,7 +284,8 @@
       cursor: pointer;
     }
     .select-bar {
-      display: flex; align-items: center; gap: 0.75rem;
+      display: flex; align-items: center; gap: 0.6rem 0.75rem;
+      flex-wrap: wrap;
       padding: 0.55rem 1rem;
       background: var(--raised);
       border: 1px solid var(--border2);
@@ -291,6 +293,7 @@
       font-size: 0.85rem;
       color: var(--muted);
     }
+    #select-summary { white-space: nowrap; }
     .select-bar strong { color: var(--text); }
     .select-bar button { padding: 0.35rem 0.9rem; font-size: 0.8rem; border-radius: 6px; cursor: pointer; font-family: var(--mono); }
     .bulk-select {
@@ -395,6 +398,57 @@
       gap: 0.3rem;
       white-space: nowrap;
     }
+
+    .owner-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .owner-status code {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--accent2);
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 0.05rem 0.35rem;
+    }
+    .relink-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .relink-input {
+      flex: 1 1 260px;
+      min-width: 200px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+    }
+    .relink-input:focus { outline: none; border-color: var(--accent); }
+    .relink-btn {
+      padding: 0.35rem 0.9rem;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      border-radius: 6px;
+      cursor: pointer;
+      background: rgba(124,92,252,0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent2);
+    }
+    .relink-btn:hover:not(:disabled) { background: rgba(124,92,252,0.3); }
+    .relink-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .relink-btn.relink-unlink {
+      background: rgba(239,68,68,0.12);
+      border-color: rgba(239,68,68,0.4);
+      color: var(--red);
+    }
+    .relink-btn.relink-unlink:hover:not(:disabled) { background: rgba(239,68,68,0.25); }
     .btn-block-ip {
       display: inline-flex; align-items: center; justify-content: center;
       width: 18px; height: 18px; padding: 0; border-radius: 4px; cursor: pointer;
@@ -665,7 +719,7 @@
           </tr>
         </thead>
         <tbody id="links-table">
-          <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+          <tr><td colspan="9" class="empty-state">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -907,7 +961,7 @@
 
     function renderLinks(links) {
       const tbody = document.getElementById('links-table');
-      if (!links.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No links found</td></tr>'; return; }
+      if (!links.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No links found</td></tr>'; return; }
 
       tbody.innerHTML = links.map(link => {
         const shortUrl   = location.origin + '/' + esc(link.slug);
@@ -996,7 +1050,7 @@
         </tr>`;
 
         const metaRow = `<tr class="meta-row">
-          <td colspan="8">
+          <td colspan="9">
             ${accessLog.length > 0 ? `
             <div class="meta-section">
               <div class="meta-label">View IPs (${accessLog.length})</div>
@@ -1006,6 +1060,19 @@
               <div class="meta-label">Google Safe Browsing</div>
               ${sbHtml}
               ${rescanHtml}
+            </div>
+            <div class="meta-section">
+              <div class="meta-label">Ownership</div>
+              <div class="owner-status">
+                ${link.ownerHash
+                  ? `Linked — owner hash <code>${esc(link.ownerHash.slice(0, 16))}…</code>`
+                  : 'Not linked to any browser'}
+              </div>
+              <div class="relink-row">
+                <input type="text" class="relink-input" placeholder="Paste their X-Fingerprint or X-Owner-Hash…" autocomplete="off" spellcheck="false" />
+                <button class="relink-btn" onclick="relinkOwner('${esc(link.slug)}', this)">Relink</button>
+                ${link.ownerHash ? `<button class="relink-btn relink-unlink" onclick="unlinkOwner('${esc(link.slug)}', this)">Unlink</button>` : ''}
+              </div>
             </div>
             ${link.deactivated ? `
             <div class="meta-section">
@@ -1485,6 +1552,73 @@
         alert(err.message);
         btn.disabled = false;
         btn.textContent = label;
+      }
+    }
+
+    // ── Relink / unlink ownership (admin, on behalf of a user) ─────────────────
+    // Accepts either the value from their X-Fingerprint (a raw device key —
+    // the server derives the hash the same way it would from that browser)
+    // or their X-Owner-Hash directly (already a 32-char hex hash, used as-is).
+    // Either one is something the user can copy from their own "view API
+    // credentials" panel and hand you.
+    async function relinkOwner(slug, btn) {
+      const row   = btn.closest('.relink-row');
+      const input = row.querySelector('.relink-input');
+      const val   = (input.value || '').trim();
+
+      if (!val) { alert('Paste their X-Fingerprint or X-Owner-Hash first.'); return; }
+
+      const body = { slug };
+      if (/^[a-f0-9]{32}$/i.test(val)) {
+        body.ownerHash = val.toLowerCase();
+      } else {
+        body.ownerFingerprint = val;
+      }
+
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Relink failed'); return; }
+        input.value = '';
+        await loadLinks();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    }
+
+    function unlinkOwner(slug, btn) {
+      showModal('Unlink Owner', `Unlink "/${slug}" from its current owner? It will no longer appear in anyone's My Links until relinked.`, () => doUnlinkOwner(slug, btn));
+    }
+
+    async function doUnlinkOwner(slug, btn) {
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + adminKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, ownerHash: null }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Unlink failed'); return; }
+        closeModal();
+        await loadLinks();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
       }
     }
 

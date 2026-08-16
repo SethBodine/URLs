@@ -6,6 +6,7 @@ import {
   CORS_PUBLIC,
   checkAdminAuth,
   getVerifiedOwnerHash,
+  deriveOwnerHash,
   validateLookupSlug,
   validateExpiry,
   readJsonBody,
@@ -65,7 +66,7 @@ export async function onRequestGet(context) {
 //   expiryDays:  30|60|90|180|365|null   (null clears expiry)
 //   previewMode: true|false
 // Only fields present in the body are touched — omit a field to leave it unchanged.
-async function applyPatchToRecord(kv, slug, { deactivated, hasExpiry, expiryDays, hasPreview, previewMode }) {
+async function applyPatchToRecord(kv, slug, { deactivated, hasExpiry, expiryDays, hasPreview, previewMode, hasOwner, ownerHash }) {
   const record = await kv.get(slug, { type: 'json' });
   if (!record) return { slug, ok: false, error: 'not found', status: 404 };
 
@@ -104,6 +105,10 @@ async function applyPatchToRecord(kv, slug, { deactivated, hasExpiry, expiryDays
     updated = { ...updated, previewMode };
   }
 
+  if (hasOwner) {
+    updated = { ...updated, ownerHash };
+  }
+
   const kvOptions = updated.expiresAt
     ? { expirationTtl: Math.max(1, Math.floor((new Date(updated.expiresAt) - Date.now()) / 1000)) }
     : {};
@@ -139,9 +144,32 @@ export async function onRequestPatch(context) {
     }
   }
 
-  if (!hasDeactivated && !hasExpiry && !hasPreview) {
+  // Relink ownership — either from a raw device key (X-Fingerprint value the
+  // user handed you), or directly from a known owner hash. Set to null to
+  // unlink entirely. `ownerFingerprint` takes priority if both are sent.
+  const hasOwnerFingerprint = typeof bodyResult.body.ownerFingerprint === 'string' && bodyResult.body.ownerFingerprint.trim() !== '';
+  const hasOwnerHashField   = Object.prototype.hasOwnProperty.call(bodyResult.body, 'ownerHash');
+  const hasOwner = hasOwnerFingerprint || hasOwnerHashField;
+  let ownerHash = null;
+  if (hasOwnerFingerprint) {
+    ownerHash = await deriveOwnerHash(bodyResult.body.ownerFingerprint.trim(), env);
+    if (!ownerHash) {
+      return jsonResponse({ error: 'Could not derive an owner hash — OWNER_HASH_SECRET may not be configured.', truth: getRandomConspiracy() }, 500, CORS_ADMIN);
+    }
+  } else if (hasOwnerHashField) {
+    const raw = bodyResult.body.ownerHash;
+    if (raw === null) {
+      ownerHash = null; // explicit unlink
+    } else if (typeof raw === 'string' && /^[a-f0-9]{32}$/i.test(raw.trim())) {
+      ownerHash = raw.trim().toLowerCase();
+    } else {
+      return jsonResponse({ error: 'ownerHash must be a 32-character hex hash, or null to unlink.', truth: getRandomConspiracy() }, 422, CORS_ADMIN);
+    }
+  }
+
+  if (!hasDeactivated && !hasExpiry && !hasPreview && !hasOwner) {
     return jsonResponse(
-      { error: 'Provide at least one of "deactivated", "expiryDays", or "previewMode" to update.', truth: getRandomConspiracy() },
+      { error: 'Provide at least one of "deactivated", "expiryDays", "previewMode", "ownerFingerprint", or "ownerHash" to update.', truth: getRandomConspiracy() },
       400, CORS_ADMIN
     );
   }
@@ -171,6 +199,7 @@ export async function onRequestPatch(context) {
       deactivated: hasDeactivated ? deactivated : undefined,
       hasExpiry, expiryDays,
       hasPreview, previewMode,
+      hasOwner, ownerHash,
     })));
 
     const failed = results.filter(r => !r.ok);

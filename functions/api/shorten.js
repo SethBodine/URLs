@@ -6,7 +6,7 @@ import {
   validateUrl,
   validateCustomSlug,
   validateExpiry,
-  getVerifiedOwnerHash,
+  resolveOwnerHash,
   readJsonBody,
 } from '../_security.js';
 import { checkSafeBrowsing } from '../_safebrowsing.js';
@@ -116,7 +116,12 @@ export async function onRequestPost(context) {
   const city    = request.cf?.city    || undefined;
 
   // ── Owner hash ─────────────────────────────────────────────────────────────
-  const ownerHash = await getVerifiedOwnerHash(request, env);
+  // Uses resolveOwnerHash (not getVerifiedOwnerHash) so that a brand-new
+  // browser's very first "link to my browser" request — which only has
+  // X-Fingerprint, since it has no cached X-Owner-Hash yet — still gets
+  // linked, instead of silently creating an unlinked record. See
+  // resolveOwnerHash's doc comment in _security.js for why this is safe.
+  const ownerHash = await resolveOwnerHash(request, env);
 
   // ── KV expiry ──────────────────────────────────────────────────────────────
   let expiresAt  = null;

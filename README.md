@@ -442,13 +442,16 @@ List all links. Requires `Authorization: Bearer ADMIN_KEY`.
 
 Update one link or a batch — deactivate/reactivate, set or clear expiry, and/or toggle the preview interstitial. Requires `Authorization: Bearer ADMIN_KEY`.
 
-Target a single slug with `slug`, or many at once with `slugs` (max 500). Include any combination of `deactivated`, `expiryDays`, and `previewMode` — only the fields present in the body are changed.
+Target a single slug with `slug`, or many at once with `slugs` (max 500). Include any combination of `deactivated`, `expiryDays`, `previewMode`, and `ownerFingerprint`/`ownerHash` — only the fields present in the body are changed.
 
 ```json
 { "slug": "ab3x", "deactivated": true }
 { "slugs": ["ab3x", "yz9q"], "expiryDays": 30 }
 { "slugs": ["ab3x", "yz9q"], "expiryDays": null }
 { "slugs": ["ab3x", "yz9q"], "previewMode": true }
+{ "slug": "ab3x", "ownerFingerprint": "<their X-Fingerprint value>" }
+{ "slug": "ab3x", "ownerHash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" }
+{ "slug": "ab3x", "ownerHash": null }
 ```
 
 | Field | Type | Description |
@@ -457,6 +460,10 @@ Target a single slug with `slug`, or many at once with `slugs` (max 500). Includ
 | `deactivated` | boolean | `true` deactivates (serves `410 Gone`); `false` reactivates |
 | `expiryDays` | number \| null | One of `30, 60, 90, 180, 365` to set; `null` clears expiry entirely |
 | `previewMode` | boolean | Enable/disable the interstitial before redirect |
+| `ownerFingerprint` | string | Relink to a specific browser using its raw `X-Fingerprint` value (the device key) — the server derives the hash the same way it would for that browser. Takes priority over `ownerHash` if both are sent. |
+| `ownerHash` | string \| null | Relink using an already-known 32-char hex owner hash directly, or `null` to unlink entirely |
+
+`ownerFingerprint`/`ownerHash` exist for relinking a link on a user's behalf — e.g. they lost access after clearing browser data and gave you their old device key or owner hash (both are visible in the "view API credentials" panel on the main site) rather than restoring it themselves.
 
 **Response `200`:**
 ```json
